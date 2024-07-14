@@ -31,27 +31,29 @@ type NotebookConf = {
     dailyNoteTemplatePath: string;
 }
 
-type BlockType = 
-    | 'd'
-    | 'p'
-    | 'query_embed'
-    | 'l'
-    | 'i'
-    | 'h'
-    | 'iframe'
-    | 'tb'
-    | 'b'
-    | 's'
-    | 'c'
-    | 'widget'
-    | 't'
-    | 'html'
-    | 'm'
-    | 'av'
-    | 'audio';
+// type BlockType = "d" | "s" | "h" | "t" | "i" | "p" | "f" | "audio" | "video" | "other";
 
+type BlockType = "d"  // 文档
+    | "h" // 标题
+    | "l" // 列表
+    | "i" // 列表项
+    | "c" // 代码块
+    | "m" // 数学公式
+    | "t" // 表格
+    | "b" // 引述
+    | "av" // 属性视图（数据库）
+    | "s" // 超级块
+    | "p" // 段落
+    | "tb" // -- 分隔线
+    | "html" // HTML
+    | "video" // 视频
+    | "audio" // 音频
+    | "widget" // 挂件
+    | "iframe" // iframe
+    | "query_embed" // 嵌入块
+    ;
 
-type BlockSubType = "d1" | "d2" | "s1" | "s2" | "s3" | "t1" | "t2" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "table" | "task" | "toggle" | "latex" | "quote" | "html" | "code" | "footnote" | "cite" | "collection" | "bookmark" | "attachment" | "comment" | "mindmap" | "spreadsheet" | "calendar" | "image" | "audio" | "video" | "other";
+type BlockSubType = "o" | "u" | "t" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
 type Block = {
     id: BlockId;
@@ -102,5 +104,82 @@ interface Window {
         languages: any;
         emojis: any;
     };
-    Lute: any;
+}
+
+
+interface IMenu {
+    iconClass?: string,
+    label?: string,
+    click?: (element: HTMLElement, event: MouseEvent) => boolean | void | Promise<boolean | void>
+    type?: "separator" | "submenu" | "readonly" | "empty",
+    accelerator?: string,
+    action?: string,
+    id?: string,
+    submenu?: IMenu[]
+    disabled?: boolean
+    icon?: string
+    iconHTML?: string
+    current?: boolean
+    bind?: (element: HTMLElement) => void
+    index?: number
+    element?: HTMLElement
+}
+
+
+type DockPosition = "Hidden" | "LeftTop" | "LeftBottom" | "RightTop" | "RightBottom" | "BottomLeft" | "BottomRight";
+
+
+
+
+/**
+ * 反链相关
+ */
+
+
+interface IBreadcrumb {
+    id: string;
+    name: string;
+    type: string;
+    subType: string;
+    children: [];
+}
+
+interface IBacklinkData {
+    blockPaths: IBreadcrumb[];
+    dom: string;
+    expand: boolean;
+    backlinkBlock: Block;
+}
+
+
+
+interface IProtyleOption {
+    backlinkData?: IBacklinkData[];
+    action?: TProtyleAction[];
+    mode?: TEditorMode;
+    toolbar?: Array<string | IToolbarItem>;
+    blockId?: string;
+    key?: string;
+    scrollAttr?: {
+        rootId: string,
+        startId: string,
+        endId: string,
+        scrollTop: number,
+        focusId?: string,
+        focusStart?: number,
+        focusEnd?: number,
+        zoomInId?: string,
+    };
+    defId?: string;
+    render?: {
+        background?: boolean,
+        title?: boolean,
+        gutter?: boolean,
+        scroll?: boolean,
+        breadcrumb?: boolean,
+        breadcrumbDocName?: boolean,
+    };
+    typewriterMode?: boolean;
+
+    after?(protyle: Protyle): void;
 }

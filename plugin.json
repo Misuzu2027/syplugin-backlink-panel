@@ -1,42 +1,28 @@
 {
-  "name": "plugin-sample-vite-svelte",
-  "author": "frostime",
-  "url": "https://github.com/siyuan-note/plugin-sample-vite-svelte",
-  "version": "0.3.5",
-  "minAppVersion": "3.0.12",
+  "name": "syplugin-backlink-panel",
+  "author": "Misuzu2027",
+  "url": "https://github.com/Misuzu2027/syplugin-backlink-panel",
+  "version": "0.0.1",
+  "minAppVersion": "3.0.1",
   "backends": [
-    "windows",
-    "linux",
-    "darwin",
-    "docker",
-    "ios",
-    "android"
+   "all"
   ],
   "frontends": [
-    "desktop",
-    "mobile",
-    "browser-desktop",
-    "browser-mobile",
-    "desktop-window"
+    "all"
   ],
   "displayName": {
-    "en_US": "Plugin sample with vite and svelte",
-    "zh_CN": "插件样例 vite + svelte 版"
+    "en_US": "Backlink Panel",
+    "zh_CN": "反链面板"
   },
   "description": {
-    "en_US": "SiYuan plugin sample with vite and svelte",
-    "zh_CN": "使用 vite 和 svelte 开发的思源插件样例"
+    "en_US": "Filterable Backlink Panel",
+    "zh_CN": "支持过滤的反链面板"
   },
   "readme": {
     "en_US": "README.md",
     "zh_CN": "README_zh_CN.md"
   },
-  "funding": {
-    "custom": [
-      ""
-    ]
-  },
   "keywords": [
-    "plugin", "sample", "插件样例"
+    "dock","document","文档"
   ]
 }

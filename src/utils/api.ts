@@ -6,12 +6,17 @@
  * API 文档见 [API_zh_CN.md](https://github.com/siyuan-note/siyuan/blob/master/API_zh_CN.md)
  */
 
-import { fetchPost, fetchSyncPost, IWebSocketData } from "siyuan";
+import { fetchPost, fetchSyncPost, IBacklinkData, IWebSocketData } from "siyuan";
+import { isBoolean } from "./object-util";
 
 
-export async function request(url: string, data: any) {
+
+async function request(url: string, data: any) {
     let response: IWebSocketData = await fetchSyncPost(url, data);
     let res = response.code === 0 ? response.data : null;
+    if (response.code != 0) {
+        console.log(`反链面板插件接口异常 url : ${url} , msg : ${response.msg}`)
+    }
     return res;
 }
 
@@ -224,24 +229,6 @@ export async function moveBlock(id: BlockId, previousID?: PreviousID, parentID?:
 }
 
 
-export async function foldBlock(id: BlockId) {
-    let data = {
-        id: id
-    }
-    let url = '/api/block/foldBlock';
-    return request(url, data);
-}
-
-
-export async function unfoldBlock(id: BlockId) {
-    let data = {
-        id: id
-    }
-    let url = '/api/block/unfoldBlock';
-    return request(url, data);
-}
-
-
 export async function getBlockKramdown(id: BlockId): Promise<IResGetBlockKramdown> {
     let data = {
         id: id
@@ -267,6 +254,83 @@ export async function transferBlockRef(fromID: BlockId, toID: BlockId, refIDs: B
     }
     let url = '/api/block/transferBlockRef';
     return request(url, data);
+}
+
+export async function getBlockIndex(id: BlockId): Promise<number> {
+    let data = {
+        id: id
+    }
+    let url = '/api/block/getBlockIndex';
+
+    return request(url, data);
+}
+
+export async function getBlocksIndexes(ids: BlockId[]): Promise<Object> {
+    let data = {
+        ids: ids
+    }
+    let url = '/api/block/getBlocksIndexes';
+
+    return request(url, data);
+}
+
+export async function getBlockIsFolded(id: string): Promise<boolean> {
+
+    let response = await checkBlockFold(id);
+    let result: boolean;
+    if (isBoolean(response)) {
+        result = response as boolean;
+    } else {
+        result = response.isFolded;
+    }
+    // console.log(`getBlockIsFolded response : ${JSON.stringify(response)}, result : ${result} `)
+    return result;
+};
+
+export async function checkBlockFold(id: string): Promise<any> {
+    if (!id) {
+        // 参数校验失败，返回拒绝
+        return Promise.reject(new Error('参数错误'));
+    }
+    let data = {
+        id: id
+    }
+    let url = '/api/block/checkBlockFold';
+
+    return request(url, data);
+};
+
+
+export async function getBatchBlockIdIndex(ids: string[]): Promise<Map<BlockId, number>> {
+    let idMap: Map<string, number> = new Map();
+    let getSuccess = true;
+    try {
+        let idObject = await getBlocksIndexes(ids);
+        // 遍历对象的键值对，并将它们添加到 Map 中
+        for (const key in idObject) {
+            if (Object.prototype.hasOwnProperty.call(idObject, key)) {
+                const value = idObject[key];
+                idMap.set(key, value);
+            }
+        }
+    } catch (err) {
+        getSuccess = false;
+        console.error("批量获取块索引报错，可能是旧版本不支持批量接口 : ", err)
+    }
+
+    if (!getSuccess) {
+        for (const id of ids) {
+            let index = 0
+            try {
+                index = await getBlockIndex(id);
+            } catch (err) {
+                console.error("获取块索引报错 : ", err)
+            }
+            idMap.set(id, index)
+        }
+    }
+
+    return idMap;
 }
 
 // **************************************** Attributes ****************************************
@@ -298,7 +362,7 @@ export async function sql(sql: string): Promise<any[]> {
     return request(url, sqldata);
 }
 
-export async function getBlockByID(blockId: string): Promise<Block> {
+export async function getBlockByID(blockId: string): Promise<DefBlock> {
     let sqlScript = `select * from blocks where id ='${blockId}'`;
     let data = await sql(sqlScript);
     return data[0];
@@ -328,11 +392,12 @@ export async function getFile(path: string): Promise<any> {
         path: path
     }
     let url = '/api/file/getFile';
-    return new Promise((resolve, _) => {
-        fetchPost(url, data, (content: any) => {
-            resolve(content)
-        });
-    });
+    try {
+        let file = await fetchSyncPost(url, data);
+        return file;
+    } catch (error_msg) {
+        return null;
+    }
 }
 
 export async function putFile(path: string, isDir: boolean, file: any) {
@@ -453,4 +518,17 @@ export async function version(): Promise<string> {
 
 export async function currentTime(): Promise<number> {
     return request('/api/system/currentTime', {});
+}
+
+
+
+export async function getBacklinkDoc(defID: string, refTreeID: string, keyword: string): Promise<{ backlinks: IBacklinkData[] }> {
+    let data = {
+        defID: defID,
+        refTreeID: refTreeID,
+        keyword: keyword,
+    }
+    let url = '/api/ref/getBacklinkDoc';
+
+    return request(url, data);
 }

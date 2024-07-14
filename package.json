@@ -1,11 +1,11 @@
 {
-  "name": "plugin-sample-vite-svelte",
-  "version": "0.3.5",
+  "name": "syplugin-backlink-panel",
+  "version": "0.0.1",
   "type": "module",
-  "description": "This is a sample plugin based on vite and svelte for Siyuan (https://b3log.org/siyuan)",
-  "repository": "",
-  "homepage": "",
-  "author": "frostime",
+  "description": "SiYuan Note Plugin: Filterable Backlink Panel",
+  "repository": "https://github.com/Misuzu2027/syplugin-backlink-panel",
+  "homepage": "https://github.com/Misuzu2027/syplugin-backlink-panel",
+  "author": "Misuzu2027",
   "license": "MIT",
   "scripts": {
     "make-link": "node  --no-warnings ./scripts/make_dev_link.js",

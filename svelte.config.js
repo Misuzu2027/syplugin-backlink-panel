@@ -19,6 +19,10 @@ export default {
     // for more information about preprocessors
     preprocess: vitePreprocess(),
     onwarn: (warning, handler) => {
+        if (warning.code.startsWith('A11y:')) {
+            return;
+        }
+        if (warning.code.startsWith('a11y-')) return
         // suppress warnings on `vite dev` and `vite build`; but even without this, things still work
         if (NoWarns.has(warning.code)) return;
         handler(warning);
