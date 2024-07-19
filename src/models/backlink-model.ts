@@ -1,5 +1,5 @@
 
-export interface DefBlockQueryCriteria {
+export interface IBacklinkPanelDataQueryParams {
     rootId: string;
     focusBlockId?: string;
     queryParentDefBlock?: boolean;
@@ -10,7 +10,7 @@ export interface DefBlockQueryCriteria {
 }
 
 
-export interface RelatedBlockQueryCriteria {
+export interface IBacklinkBlockQueryParams {
     defBlockIds: string[];
     backlinkParentBlockIds?: string[];
     // includeTypes: string[];
@@ -18,7 +18,7 @@ export interface RelatedBlockQueryCriteria {
 }
 
 
-export interface BacklinkBlockNode {
+export interface IBacklinkBlockNode {
     block: DefBlock;
     concatContent: string;
     includeDirectDefBlockIds: Set<string>;
@@ -26,9 +26,9 @@ export interface BacklinkBlockNode {
 }
 
 
-export interface BacklinkPanelData {
+export interface IBacklinkPanelData {
     rootId: string;
-    backlinkBlockNodeArray: BacklinkBlockNode[];
+    backlinkBlockNodeArray: IBacklinkBlockNode[];
     // 当前文档的定义块
     curDocDefBlockArray: DefBlock[];
     // 有关联的定义块
@@ -36,11 +36,13 @@ export interface BacklinkPanelData {
     // 关联块所属的文档
     relatedDocumentArray: DefBlock[];
 
+    userCache?: boolean;
+
     // 关联块文档数据结构，不采用文档方式
     // documentNodeArray: DocumentNode[];
 }
 
-export interface BacklinkPanelRenderQueryCondition {
+export interface IBacklinkPanelRenderQueryParams {
     keywordStr: string;
     pageNum: number;
     pageSize: number;
@@ -52,7 +54,7 @@ export interface BacklinkPanelRenderQueryCondition {
 
 }
 
-export interface BacklinkPanelQueryCondition extends BacklinkPanelRenderQueryCondition {
+export interface IBacklinkPanelRednerFilterQueryParams extends IBacklinkPanelRenderQueryParams {
     filterPanelCurDocDefBlockSortMethod: BlockSortMethod;
     filterPanelCurDocDefBlockKeywords: string;
 
@@ -65,12 +67,12 @@ export interface BacklinkPanelQueryCondition extends BacklinkPanelRenderQueryCon
 
 
 
-export interface BacklinkPanelRenderData {
+export interface IBacklinkPanelRenderData {
     rootId: string;
 
     backlinkDocArray: IBacklinkData[];
 
-    backlinkBlockNodeArray: BacklinkBlockNode[];
+    backlinkBlockNodeArray: IBacklinkBlockNode[];
     // 当前文档的定义块
     curDocDefBlockArray: DefBlock[];
     // 有关联的定义块
@@ -82,4 +84,11 @@ export interface BacklinkPanelRenderData {
     pageSize: number;
     totalPage: number;
     usedCache: boolean;
+}
+
+export class BacklinkPanelFilterCriteria {
+    // backlinkPanelBaseDataQueryParams: BacklinkPanelBaseDataQueryParams;
+    queryParams: IBacklinkPanelRednerFilterQueryParams;
+    backlinkPanelFilterViewExpand: boolean;
+
 }

@@ -1,17 +1,17 @@
-import { RelatedBlockQueryCriteria, DefBlockQueryCriteria  } from "@/models/backlink-model";
+import { IBacklinkBlockQueryParams, IBacklinkPanelDataQueryParams } from "@/models/backlink-model";
 
 
 
 /**
  * 查询指定块下面的所有定义块
- * @param queryCriteria 
+ * @param queryParams 
  * @returns 
  */
 export function generateGetDefBlockArraySql(
-    queryCriteria: DefBlockQueryCriteria ,
+    queryParams: IBacklinkPanelDataQueryParams,
 ): string {
-    let rootId = queryCriteria.rootId;
-    let focusBlockId = queryCriteria.focusBlockId;
+    let rootId = queryParams.rootId;
+    let focusBlockId = queryParams.focusBlockId;
     let sql = "";
     if (focusBlockId) {
         sql = `
@@ -63,10 +63,10 @@ export function generateGetDefBlockArraySql(
 
 
 export function generateGetParentDefBlockArraySql(
-    queryCriteria: RelatedBlockQueryCriteria,
+    queryParams: IBacklinkBlockQueryParams,
 ): string {
 
-    let defBlockIds = queryCriteria.defBlockIds;
+    let defBlockIds = queryParams.defBlockIds;
     // let typeInSql = generateAndInConditions("type", includeTypes);
     let idInSql = generateAndInConditions("def_block_id", defBlockIds);
 
@@ -117,10 +117,10 @@ export function generateGetParentDefBlockArraySql(
 
 
 export function generateGetParenListItemtDefBlockArraySql(
-    queryCriteria: RelatedBlockQueryCriteria,
+    queryParams: IBacklinkBlockQueryParams,
 ): string {
 
-    let backlinkParentBlockIds = queryCriteria.backlinkParentBlockIds;
+    let backlinkParentBlockIds = queryParams.backlinkParentBlockIds;
     let idInSql = generateAndInConditions("parent_id", backlinkParentBlockIds);
 
 
@@ -140,11 +140,11 @@ export function generateGetParenListItemtDefBlockArraySql(
 
 
 export function generateGetBacklinkBlockArraySql(
-    queryCriteria: RelatedBlockQueryCriteria,
+    queryParams: IBacklinkBlockQueryParams,
 ): string {
-    let defBlockIds = queryCriteria.defBlockIds;
+    let defBlockIds = queryParams.defBlockIds;
     let idInSql = generateAndInConditions("def_block_id", defBlockIds);
-    
+
     let sql = `
     SELECT b.*
     FROM blocks b
@@ -161,11 +161,11 @@ export function generateGetBacklinkBlockArraySql(
 
 
 export function generateGetBacklinkListItemBlockArraySql(
-    queryCriteria: RelatedBlockQueryCriteria,
+    queryParams: IBacklinkBlockQueryParams,
 ): string {
-    let defBlockIds = queryCriteria.defBlockIds;
+    let defBlockIds = queryParams.defBlockIds;
     let idInSql = generateAndInConditions("def_block_id", defBlockIds);
-    
+
     let sql = `
     SELECT b.*, 
     p1.type AS parentBlockType, 
@@ -190,9 +190,9 @@ export function generateGetBacklinkListItemBlockArraySql(
 
 
 export function generateGetChildDefBlockArraySql(
-    queryCriteria: RelatedBlockQueryCriteria,
+    queryParams: IBacklinkBlockQueryParams,
 ): string {
-    let defBlockIds = queryCriteria.defBlockIds;
+    let defBlockIds = queryParams.defBlockIds;
     let idInSql = generateAndInConditions("def_block_id", defBlockIds);
 
     let sql = `
@@ -229,6 +229,20 @@ export function generateGetBlockArraySql(
     WHERE 1 = 1 
     ${idInSql}
     LIMIT 9999999;
+    `
+    return cleanSpaceText(sql);
+}
+
+export function getParentIdIdxInfoSql() {
+    let sql = `
+    PRAGMA index_info(idx_blocks_parent_id_backlink_panel_plugin);
+    `
+    return cleanSpaceText(sql);
+}
+
+export function getCreateBlocksParentIdIdxSql() {
+    let sql = `
+    CREATE INDEX idx_blocks_parent_id_backlink_panel_plugin ON blocks(parent_id);
     `
     return cleanSpaceText(sql);
 }

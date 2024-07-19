@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { EnvConfig } from "@/config/env-config";
+    import { EnvConfig } from "@/config/EnvConfig";
     import {
         BACKLINK_BLOCK_SORT_METHOD_ELEMENT,
         CUR_DOC_DEF_BLOCK_SORT_METHOD_ELEMENT,
@@ -7,24 +7,34 @@
         RELATED_DOCMUMENT_SORT_METHOD_ELEMENT,
     } from "@/models/backlink-constant";
     import {
-        BacklinkPanelData,
-        DefBlockQueryCriteria,
-        BacklinkPanelRenderData,
-        BacklinkPanelQueryCondition,
+        IBacklinkPanelData,
+        IBacklinkPanelDataQueryParams,
+        IBacklinkPanelRenderData,
+        IBacklinkPanelRednerFilterQueryParams,
+        BacklinkPanelFilterCriteria,
     } from "@/models/backlink-model";
     import {
         defBlockArrayKeywordMatch,
         defBlockArraySort,
         getBacklinkPanelData,
         getBacklinkPanelRenderData,
+        getTurnPageBacklinkPanelRenderData,
     } from "@/service/backlink-data";
-    import { isArrayNotEmpty } from "@/utils/array-util";
+    import { isArrayEmpty, isArrayNotEmpty } from "@/utils/array-util";
     import { clearProtyleGutters } from "@/utils/html-util";
     import { removePrefixAndSuffix } from "@/utils/string-util";
-    import { BacklinkDocCache } from "@/utils/cache-util";
-    import { Protyle } from "siyuan";
+    import {
+        Constants,
+        openMobileFileById,
+        openTab,
+        Protyle,
+        TProtyleAction,
+    } from "siyuan";
     import { onDestroy, onMount } from "svelte";
     import { getBlockTypeIconHref } from "@/utils/icon-util";
+    import { CacheManager } from "@/config/CacheManager";
+    import { BacklinkPanelFilterCriteriaService } from "@/service/setting/BacklinkPanelFilterCriteriaService";
+    import { SettingService } from "@/service/setting/SettingService";
 
     export let rootId: string;
     export let focusBlockId: string;
@@ -41,11 +51,11 @@
     let backlinkULElement: HTMLElement;
 
     /* 数据 */
-    let backlinkPanelBaseData: BacklinkPanelData;
-    let backlinkPanelRenderData: BacklinkPanelRenderData;
+    let backlinkPanelBaseData: IBacklinkPanelData;
+    let backlinkPanelRenderData: IBacklinkPanelRenderData;
     // 用于排序、关键字查找筛选条件，此时不会改动反链信息，所以在页面中处理。
 
-    let queryCriteria: BacklinkPanelQueryCondition;
+    let queryParams: IBacklinkPanelRednerFilterQueryParams;
 
     /* 全局使用 */
     let editors: Protyle[] = [];
@@ -57,6 +67,8 @@
     /* 控制页面元素的 */
     let backlinkPanelFilterViewExpand: boolean = false;
 
+    $: updateDefaultConditions(queryParams, backlinkPanelFilterViewExpand);
+
     onMount(async () => {
         initData();
         initEvent();
@@ -66,9 +78,22 @@
         clearBacklinkProtyleList();
     });
 
-    // export function resize(clientWidth?: number) {
-    //     console.log(clientWidth);
-    // }
+    function updateDefaultConditions(
+        queryParams: IBacklinkPanelRednerFilterQueryParams,
+        backlinkPanelFilterViewExpand: boolean,
+    ) {
+        if (!rootId || !queryParams) {
+            return;
+        }
+        let conditions: BacklinkPanelFilterCriteria = {
+            queryParams,
+            backlinkPanelFilterViewExpand,
+        };
+        BacklinkPanelFilterCriteriaService.ins.updateBacklinkPanelFilterCriteria(
+            rootId,
+            conditions,
+        );
+    }
 
     function initEvent() {
         curRootElement.parentElement.parentElement.addEventListener(
@@ -88,7 +113,7 @@
             if (
                 target &&
                 target.classList.contains("b3-list-item__text") &&
-                target.classList.contains("documentName")
+                target.classList.contains("list-item__document-name")
             ) {
                 clearProtyleGutters(backlinkULElement);
             }
@@ -97,6 +122,11 @@
 
     function clickBacklinkDocumentLi(event: MouseEvent) {
         const target = event.currentTarget as HTMLElement;
+        if (event.ctrlKey) {
+            let rootId = target.getAttribute("data-node-id");
+            openDocumentTab(rootId);
+            return;
+        }
         let closeStatus = target.classList.contains("backlink-hide");
         if (closeStatus) {
             target.nextElementSibling.classList.remove("fn__none");
@@ -112,6 +142,38 @@
                 .classList.remove("b3-list-item__arrow--open");
         }
     }
+    function expandLiElement(event: MouseEvent) {
+        const target = event.target as HTMLElement;
+
+        const parentLiElement = target.closest(".list-item__document-name");
+        if (!parentLiElement) {
+            return;
+        }
+
+        const liNodes =
+            parentLiElement.nextElementSibling.querySelectorAll<HTMLElement>(
+                'div[data-subtype="u"].li[fold="1"]',
+            );
+        liNodes.forEach((node) => {
+            node.removeAttribute("fold");
+        });
+    }
+
+    function openDocumentTab(rootId: string) {
+        let actions: TProtyleAction[] = [Constants.CB_GET_CONTEXT];
+
+        if (EnvConfig.ins.isMobile) {
+            openMobileFileById(EnvConfig.ins.app, rootId, actions);
+        } else {
+            openTab({
+                app: EnvConfig.ins.app,
+                doc: {
+                    id: rootId,
+                    action: actions,
+                },
+            });
+        }
+    }
 
     async function initData() {
         if (!rootId) {
@@ -119,50 +181,68 @@
         }
         previousRootId = rootId;
         previousFocusBlockId = focusBlockId;
-        let defBlockQueryCriteria: DefBlockQueryCriteria = {
+        let settingConfig = SettingService.ins.SettingConfig;
+        let backlinkPanelDataQueryParams: IBacklinkPanelDataQueryParams = {
             rootId,
             focusBlockId,
-            queryParentDefBlock: true,
-            querrChildDefBlockForListItem: true,
-            queryChildDefBlockForHeadline: true,
+            queryParentDefBlock: settingConfig.queryParentDefBlock,
+            querrChildDefBlockForListItem:
+                settingConfig.querrChildDefBlockForListItem,
+            queryChildDefBlockForHeadline:
+                settingConfig.queryChildDefBlockForHeadline,
         };
-        // console.log(
-        //     "backlink-panel-view initData defBlockQueryCriteria : ",
-        //     defBlockQueryCriteria,
-        // );
 
         backlinkPanelBaseData = await getBacklinkPanelData(
-            defBlockQueryCriteria,
+            backlinkPanelDataQueryParams,
         );
 
-        queryCriteria = {
-            keywordStr: "",
-            pageNum: 1,
-            pageSize: 10,
-            backlinkBlockSortMethod: "modifiedDesc",
-            includeRelatedDefBlockIds: new Set<string>(),
-            excludeRelatedDefBlockIds: new Set<string>(),
-            includeDocumentIds: new Set<string>(),
-            excludeDocumentIds: new Set<string>(),
-            filterPanelCurDocDefBlockSortMethod: "typeAndContent",
-            filterPanelCurDocDefBlockKeywords: "",
-            filterPanelRelatedDefBlockSortMethod: "modifiedDesc",
-            filterPanelRelatedDefBlockKeywords: "",
-            filterPanelRelatedDocumentSortMethod: "createdDesc",
-            filterPanelRelatedDocumentKeywords: "",
-        };
+        let defaultConditions =
+            await BacklinkPanelFilterCriteriaService.ins.getBacklinkPanelFilterCriteria(
+                rootId,
+            );
+
+        queryParams = defaultConditions.queryParams;
+        backlinkPanelFilterViewExpand =
+            defaultConditions.backlinkPanelFilterViewExpand;
+
+        queryParams.pageNum = 1;
 
         updateRenderData();
     }
 
     async function updateRenderData() {
-        // console.log("updateRenderData queryCriteria : ", queryCriteria);
         backlinkPanelRenderData = await getBacklinkPanelRenderData(
             backlinkPanelBaseData,
-            queryCriteria,
+            queryParams,
         );
-        // queryCriteria = queryCriteria;
+        queryParams = queryParams;
+
         refreshFilterDisplayData();
+
+        refreshBacklinkPreview();
+    }
+
+    async function pageTurning(pageNumParam: number) {
+        if (
+            pageNumParam < 1 ||
+            pageNumParam > backlinkPanelRenderData.totalPage
+        ) {
+            return;
+        }
+        queryParams.pageNum = pageNumParam;
+        let pageBacklinkPanelRenderData =
+            await getTurnPageBacklinkPanelRenderData(
+                backlinkPanelRenderData.rootId,
+                backlinkPanelRenderData.backlinkBlockNodeArray,
+                queryParams,
+            );
+
+        backlinkPanelRenderData.backlinkDocArray =
+            pageBacklinkPanelRenderData.backlinkDocArray;
+        backlinkPanelRenderData.pageNum = pageBacklinkPanelRenderData.pageNum;
+        backlinkPanelRenderData.usedCache =
+            pageBacklinkPanelRenderData.usedCache;
+        queryParams = queryParams;
 
         refreshBacklinkPreview();
     }
@@ -175,31 +255,32 @@
         // 先匹配关键字
         defBlockArrayKeywordMatch(
             curDocDefBlockArray,
-            queryCriteria.filterPanelCurDocDefBlockKeywords,
+            queryParams.filterPanelCurDocDefBlockKeywords,
         );
         defBlockArrayKeywordMatch(
             relatedDefBlockArray,
-            queryCriteria.filterPanelRelatedDefBlockKeywords,
+            queryParams.filterPanelRelatedDefBlockKeywords,
         );
         defBlockArrayKeywordMatch(
             relatedDocumentArray,
-            queryCriteria.filterPanelRelatedDocumentKeywords,
+            queryParams.filterPanelRelatedDocumentKeywords,
         );
         // 排序
         await defBlockArraySort(
             curDocDefBlockArray,
-            queryCriteria.filterPanelCurDocDefBlockSortMethod,
+            queryParams.filterPanelCurDocDefBlockSortMethod,
         );
         await defBlockArraySort(
             relatedDefBlockArray,
-            queryCriteria.filterPanelRelatedDefBlockSortMethod,
+            queryParams.filterPanelRelatedDefBlockSortMethod,
         );
         await defBlockArraySort(
             relatedDocumentArray,
-            queryCriteria.filterPanelRelatedDocumentSortMethod,
+            queryParams.filterPanelRelatedDocumentSortMethod,
         );
 
         backlinkPanelRenderData = backlinkPanelRenderData;
+        // console.log("refreshFilterDisplayData ", backlinkPanelRenderData);
     }
 
     function refreshBacklinkPreview() {
@@ -234,8 +315,15 @@
         relatedDocumentArray: DefBlock[],
         backlinkDocArray: IBacklinkData[],
     ) {
+        if (isArrayEmpty(backlinkDocArray)) {
+            let pElement = document.createElement("p");
+            pElement.style.padding = "5px 15px";
+            pElement.innerText = window.siyuan.languages.emptyContent;
+            backlinkULElement.append(pElement);
+        }
+
         for (const backlinkDoc of backlinkDocArray) {
-            queryCriteria.includeRelatedDefBlockIds;
+            queryParams.includeRelatedDefBlockIds;
             let backlinkNode = backlinkDoc.backlinkBlock;
             let notebookId = backlinkNode.box;
 
@@ -249,41 +337,11 @@
             let backlinkRootId = backlinkDoc.blockPaths[0].id;
             let backlinkRootHpath = backlinkDoc.blockPaths[0].name;
 
-            let documentLiHtml = document.createElement("li");
-
-            /**
-             * 
-<li class="b3-list-item b3-list-item--hide-action  documentName" style="--file-toggle-width:20px">
-    <span style="padding-left: 4px;margin-right: 2px" class="b3-list-item__toggle b3-list-item__toggle--hl">
-        <svg class="b3-list-item__arrow b3-list-item__arrow--open"><use xlink:href="#iconRight"></use></svg>
-    </span>
-    <svg class="b3-list-item__graphic popover__block" ><use xlink:href="#iconFile"></use></svg>
-    <span class="b3-list-item__text ariaLabel" data-position="parentE" aria-label="${backlinkRootHpath}">  ${documentName}</span>
-    
-
-</li>
-             * 
-            */
-            documentLiHtml.classList.add(
-                "b3-list-item",
-                "b3-list-item--hide-action",
-                "b3-list-item__text",
-                "ariaLabel",
-                "documentName",
+            createdDocumentLiElement(
+                documentName,
+                backlinkRootId,
+                backlinkRootHpath,
             );
-            documentLiHtml.innerHTML = `
-<span style="padding-left: 4px;margin-right: 2px" class="b3-list-item__toggle b3-list-item__toggle--hl">
-    <svg class="b3-list-item__arrow b3-list-item__arrow--open"><use xlink:href="#iconRight"></use></svg>
-</span>
-<svg class="b3-list-item__graphic popover__block""><use xlink:href="#iconFile"></use></svg>
-<span aria-label="${backlinkRootHpath}"  >
-    ${documentName}
-</span>
-            `;
-            documentLiHtml.addEventListener("click", (event: MouseEvent) => {
-                clickBacklinkDocumentLi(event);
-            });
-            backlinkULElement.append(documentLiHtml);
 
             let backlinks: IBacklinkData[] = [backlinkDoc];
             const editorElement = document.createElement("div");
@@ -304,6 +362,47 @@
             editor.protyle.notebookId = notebookId;
             editors.push(editor);
         }
+    }
+
+    function createdDocumentLiElement(
+        documentName: string,
+        backlinkRootId: string,
+        backlinkRootHpath: string,
+    ) {
+        let documentLiElement = document.createElement("li");
+
+        documentLiElement.classList.add(
+            "b3-list-item",
+            "b3-list-item--hide-action",
+            // "b3-list-item__text",
+            "list-item__document-name",
+        );
+        documentLiElement.setAttribute("data-node-id", backlinkRootId);
+
+        documentLiElement.innerHTML = `
+<span style="padding-left: 4px;margin-right: 2px" class="b3-list-item__toggle b3-list-item__toggle--hl">
+<svg class="b3-list-item__arrow b3-list-item__arrow--open"><use xlink:href="#iconRight"></use></svg>
+</span>
+<svg class="b3-list-item__graphic popover__block"><use xlink:href="#iconFile"></use></svg>
+<span class="b3-list-item__text" class="ariaLabel" aria-label="${backlinkRootHpath}"  >
+${documentName}
+</span>
+<svg class="b3-list-item__graphic counter ariaLabel expand-listitem-icon" aria-label="展开所有列表项"><use xlink:href="#LiElementExpand"></use></svg>
+`;
+        documentLiElement.addEventListener("click", (event: MouseEvent) => {
+            clickBacklinkDocumentLi(event);
+        });
+
+        documentLiElement
+            .querySelector(
+                "li > svg.b3-list-item__graphic.counter.ariaLabel.expand-listitem-icon",
+            )
+            .addEventListener("click", (event: MouseEvent) => {
+                expandLiElement(event);
+                event.stopPropagation();
+            });
+
+        backlinkULElement.append(documentLiElement);
     }
 
     function getDefBlockAriaLabel(
@@ -344,7 +443,7 @@
     }
 
     function clearCacheAndRefresh() {
-        BacklinkDocCache.ins.clearByPrefix(rootId);
+        CacheManager.ins.deleteBacklinkPanelAllCache(rootId);
         initData();
     }
 
@@ -401,7 +500,7 @@
     }
 
     function addIncludeRelatedDefBlockCondition(defBlock: DefBlock) {
-        let includeRelatedDefBlockIds = queryCriteria.includeRelatedDefBlockIds;
+        let includeRelatedDefBlockIds = queryParams.includeRelatedDefBlockIds;
         let defBlockId = defBlock.id;
         let recover = recoverDefBlockStatus(defBlock);
         if (!recover) {
@@ -412,7 +511,7 @@
     }
 
     function addExcludeRelatedDefBlockCondition(defBlock: DefBlock) {
-        let excludeRelatedDefBlockIds = queryCriteria.excludeRelatedDefBlockIds;
+        let excludeRelatedDefBlockIds = queryParams.excludeRelatedDefBlockIds;
         let defBlockId = defBlock.id;
         let recover = recoverDefBlockStatus(defBlock);
         if (!recover) {
@@ -423,7 +522,7 @@
     }
 
     function addIncludeRelatedDocBlockCondition(defBlock: DefBlock) {
-        let includeDocumentIds = queryCriteria.includeDocumentIds;
+        let includeDocumentIds = queryParams.includeDocumentIds;
         let defBlockId = defBlock.id;
         let recover = recoverDocBlockStatus(defBlock);
         if (!recover) {
@@ -434,7 +533,7 @@
     }
 
     function addExcludeRelatedDocBlockCondition(defBlock: DefBlock) {
-        let excludeDocumentIds = queryCriteria.excludeDocumentIds;
+        let excludeDocumentIds = queryParams.excludeDocumentIds;
         let defBlockId = defBlock.id;
         let recover = recoverDocBlockStatus(defBlock);
         if (!recover) {
@@ -445,8 +544,8 @@
     }
 
     function recoverDefBlockStatus(defBlock: DefBlock): boolean {
-        let includeRelatedDefBlockIds = queryCriteria.includeRelatedDefBlockIds;
-        let excludeRelatedDefBlockIds = queryCriteria.excludeRelatedDefBlockIds;
+        let includeRelatedDefBlockIds = queryParams.includeRelatedDefBlockIds;
+        let excludeRelatedDefBlockIds = queryParams.excludeRelatedDefBlockIds;
         let defBlockId = defBlock.id;
         if (includeRelatedDefBlockIds.has(defBlockId)) {
             includeRelatedDefBlockIds.delete(defBlockId);
@@ -460,8 +559,8 @@
     }
 
     function recoverDocBlockStatus(defBlock: DefBlock): boolean {
-        let includeDocumentIds = queryCriteria.includeDocumentIds;
-        let excludeDocumentIds = queryCriteria.excludeDocumentIds;
+        let includeDocumentIds = queryParams.includeDocumentIds;
+        let excludeDocumentIds = queryParams.excludeDocumentIds;
         let defBlockId = defBlock.id;
         if (includeDocumentIds.has(defBlockId)) {
             includeDocumentIds.delete(defBlockId);
@@ -505,15 +604,23 @@
 </script>
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->
-<div class="backlink-panel-dock" bind:this={curRootElement}>
+<div class="backlink-panel__area" bind:this={curRootElement}>
+    {#if !rootId}
+        <p style="padding: 10px 20px;">
+            没有获取到当前文档信息，请切换文档重试
+        </p>
+    {/if}
+    {#if backlinkPanelBaseData && backlinkPanelBaseData.userCache}
+        <p style="padding: 10px 20px;">此次面板使用了缓存数据</p>
+    {/if}
     <div
-        class="paenl-title filter"
+        class="panel__title filter-panel__title block__icons"
         on:click={() => {
             backlinkPanelFilterViewExpand = !backlinkPanelFilterViewExpand;
         }}
         on:keydown={handleKeyDownDefault}
     >
-        <div class="block__logo" style="font-size: 20px;font-weight: bold;">
+        <div class="block__logo" style="font-weight: bold;">
             <svg class="block__logoicon"
                 ><use xlink:href="#iconFilter"></use></svg
             >筛选面板
@@ -553,16 +660,16 @@
                 <div class="fn__flex">
                     <select
                         class="b3-select fn__flex-center"
-                        bind:value={queryCriteria.filterPanelCurDocDefBlockSortMethod}
+                        bind:value={queryParams.filterPanelCurDocDefBlockSortMethod}
                         on:change={refreshFilterDisplayData}
                     >
                         {#each CUR_DOC_DEF_BLOCK_SORT_METHOD_ELEMENT() as element}
                             <option
                                 value={element.value}
                                 selected={element.value ==
-                                    queryCriteria.filterPanelCurDocDefBlockSortMethod}
+                                    queryParams.filterPanelCurDocDefBlockSortMethod}
                             >
-                                {element.text}
+                                {element.name}
                             </option>
                         {/each}
                     </select>
@@ -570,7 +677,7 @@
                     <input
                         class="b3-text-field fn__size200"
                         on:input={handleFilterPanelInput}
-                        bind:value={queryCriteria.filterPanelCurDocDefBlockKeywords}
+                        bind:value={queryParams.filterPanelCurDocDefBlockKeywords}
                     />
                 </div>
                 <div class="defblock-list">
@@ -614,23 +721,23 @@
                 <div class="fn__flex">
                     <select
                         class="b3-select fn__flex-center"
-                        bind:value={queryCriteria.filterPanelRelatedDefBlockSortMethod}
+                        bind:value={queryParams.filterPanelRelatedDefBlockSortMethod}
                         on:change={refreshFilterDisplayData}
                     >
                         {#each RELATED_DEF_BLOCK_SORT_METHOD_ELEMENT() as element}
                             <option
                                 value={element.value}
                                 selected={element.value ==
-                                    queryCriteria.filterPanelRelatedDefBlockSortMethod}
+                                    queryParams.filterPanelRelatedDefBlockSortMethod}
                             >
-                                {element.text}
+                                {element.name}
                             </option>
                         {/each}
                     </select>
                     <input
                         class="b3-text-field fn__size200"
                         on:input={handleFilterPanelInput}
-                        bind:value={queryCriteria.filterPanelRelatedDefBlockKeywords}
+                        bind:value={queryParams.filterPanelRelatedDefBlockKeywords}
                     />
                 </div>
                 <div class="defblock-list">
@@ -672,23 +779,23 @@
                 <div class="fn__flex">
                     <select
                         class="b3-select fn__flex-center"
-                        bind:value={queryCriteria.filterPanelRelatedDocumentSortMethod}
+                        bind:value={queryParams.filterPanelRelatedDocumentSortMethod}
                         on:change={refreshFilterDisplayData}
                     >
                         {#each RELATED_DOCMUMENT_SORT_METHOD_ELEMENT() as element}
                             <option
                                 value={element.value}
                                 selected={element.value ==
-                                    queryCriteria.filterPanelRelatedDocumentSortMethod}
+                                    queryParams.filterPanelRelatedDocumentSortMethod}
                             >
-                                {element.text}
+                                {element.name}
                             </option>
                         {/each}
                     </select>
                     <input
                         class="b3-text-field fn__size200"
                         on:input={handleFilterPanelInput}
-                        bind:value={queryCriteria.filterPanelRelatedDocumentKeywords}
+                        bind:value={queryParams.filterPanelRelatedDocumentKeywords}
                     />
                 </div>
                 <div class="defblock-list">
@@ -730,41 +837,104 @@
     {/if}
     <hr />
     <!-- 反链块展示区 -->
-    <div class="paenl-title" style=" cursor: default;">
-        <div class="block__logo" style="font-size: 20px;font-weight: bold;">
+    <div
+        class="panel__title backlink-panel__title block__icons"
+        style=" cursor: default;"
+    >
+        <div class="block__logo" style="font-weight: bold;">
             <svg class="block__logoicon"><use xlink:href="#iconLink"></use></svg
             >反向链接
         </div>
     </div>
     <div class="backlinkList fn__flex-1">
-        <div class="fn__flex" style="padding: 5px 15px;">
-            {#if queryCriteria}
+        {#if queryParams && backlinkPanelRenderData && isArrayNotEmpty(backlinkPanelRenderData.backlinkDocArray)}
+            <div class="fn__flex" style="padding: 5px 15px;">
                 <select
                     class="b3-select fn__flex-center"
-                    bind:value={queryCriteria.backlinkBlockSortMethod}
+                    bind:value={queryParams.backlinkBlockSortMethod}
                     on:change={updateRenderData}
                 >
                     {#each BACKLINK_BLOCK_SORT_METHOD_ELEMENT() as element}
                         <option
                             value={element.value}
                             selected={element.value ==
-                                queryCriteria.backlinkBlockSortMethod}
+                                queryParams.backlinkBlockSortMethod}
                         >
-                            {element.text}
+                            {element.name}
                         </option>
                     {/each}
                 </select>
-            {/if}
 
-            {#if backlinkPanelRenderData}
                 <input
                     class="b3-text-field fn__size200"
                     on:input={handleBacklinkKeywordInput}
-                    bind:value={queryCriteria.keywordStr}
+                    bind:value={queryParams.keywordStr}
                 />
-            {/if}
-        </div>
-        <div>
+            </div>
+            <div>
+                <div class="block__icons" style="overflow:auto">
+                    <span
+                        class="fn__flex-shrink ft__selectnone {backlinkPanelRenderData.totalPage ==
+                            null || backlinkPanelRenderData.totalPage == 0
+                            ? 'fn__none'
+                            : ''}"
+                    >
+                        <span class="fn__space"></span>
+
+                        <span class="ft__on-surface">
+                            {EnvConfig.ins.i18n.findInBacklink.replace(
+                                "${x}",
+                                backlinkPanelRenderData.backlinkBlockNodeArray
+                                    .length,
+                            )}
+                        </span>
+                    </span>
+                    <span class="fn__space"></span>
+                    <span class="fn__flex-1" style="min-height: 100%"></span>
+
+                    <span
+                        class="fn__flex-shrink ft__selectnone {backlinkPanelRenderData.totalPage ==
+                            null || backlinkPanelRenderData.totalPage == 0
+                            ? 'fn__none'
+                            : ''}"
+                    >
+                        {backlinkPanelRenderData.pageNum}/{backlinkPanelRenderData.totalPage}
+                    </span>
+
+                    <span class="fn__space"></span>
+                    <span
+                        data-position="9bottom"
+                        class="block__icon block__icon--show ariaLabel {backlinkPanelRenderData.pageNum <=
+                        1
+                            ? 'disabled'
+                            : ''}"
+                        aria-label={EnvConfig.ins.i18n.previousLabel}
+                        on:click={() => {
+                            pageTurning(backlinkPanelRenderData.pageNum - 1);
+                        }}
+                        on:keydown={handleKeyDownDefault}
+                        ><svg><use xlink:href="#iconLeft"></use></svg></span
+                    >
+                    <span class="fn__space"></span>
+                    <span
+                        data-position="9bottom"
+                        class="block__icon block__icon--show ariaLabel {backlinkPanelRenderData.pageNum >=
+                        backlinkPanelRenderData.totalPage
+                            ? 'disabled'
+                            : ''}"
+                        aria-label={EnvConfig.ins.i18n.nextLabel}
+                        on:click={() => {
+                            pageTurning(backlinkPanelRenderData.pageNum + 1);
+                        }}
+                        on:keydown={handleKeyDownDefault}
+                        ><svg><use xlink:href="#iconRight"></use></svg></span
+                    >
+                    <span class="fn__space"></span>
+                </div>
+            </div>
+        {/if}
+
+        <div class="sy__backlink">
             <ul
                 bind:this={backlinkULElement}
                 class="b3-list b3-list--background"
@@ -784,7 +954,7 @@
         transition: all 0.2s ease;
         border: 1px solid transparent;
         position: relative; /* 为了绝对定位的小数字 */
-        max-width: 60px;
+        max-width: 120px;
         max-height: 30px;
         overflow: hidden; /* 隐藏超出部分的文本 */
         text-overflow: ellipsis; /* 超出部分显示省略号 */
@@ -833,14 +1003,14 @@
         font-size: 10px;
     }
 
-    .paenl-title {
-        color: var(--b3-theme-on-surface);
+    .panel__title {
+        /* color: var(--b3-theme-on-surface); */
         cursor: pointer;
         border: 0;
         opacity: 1;
         background: rgba(0, 0, 0, 0);
         flex-shrink: 0;
-        padding: 5px 10px;
+        padding: 2px 10px;
         display: flex;
         align-items: center;
         border-radius: var(--b3-border-radius);
@@ -851,7 +1021,7 @@
         min-height: 30px;
         height: 35px;
     }
-    .paenl-title.filter:hover {
+    .filter-panel__title:hover {
         color: var(--b3-theme-on-background);
         background-color: var(--b3-list-icon-hover);
     }
@@ -901,5 +1071,8 @@
     }
     .block__icon {
         opacity: 1;
+    }
+    .backlinkList .b3-text-field:not(.b3-text-field:focus) {
+        box-shadow: inset 0 0 0 1px var(--b3-layout-resize);
     }
 </style>

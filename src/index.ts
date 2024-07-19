@@ -1,47 +1,35 @@
 import {
     Plugin,
-    showMessage,
 } from "siyuan";
 import "@/index.scss";
 
-import BacklinkPanelDockSvelte from "./components/dock/backlink-panel-dock.svelte";
-import { EnvConfig } from "./config/env-config";
 
-interface Item {
-    id: number;
-    filterStatus: 'SELECTED' | 'EXCLUDED' | string;
-    updated: number;
-}
+import { EnvConfig } from "./config/EnvConfig";
+import { CUSTOM_ICON_MAP } from "./models/icon-constant";
+import { SettingService } from "./service/setting/SettingService";
+import { initDock } from "./components/dock/dock-util";
+import { openSettingsDialog } from "./components/setting/setting-util";
+
 
 export default class PluginSample extends Plugin {
 
 
-    public sortItems(items: Item[]): Item[] {
-        return items.sort((a, b) => {
-            if (a.filterStatus !== b.filterStatus) {
-                if (a.filterStatus == "SELECTED") {
-                    return -1;
-                } else if (b.filterStatus == "SELECTED") {
-                    return 1;
-                } else if (a.filterStatus == "EXCLUDED") {
-                    return -1;
-                } else if (b.filterStatus == "EXCLUDED") {
-                    return 1;
-                }
-            }
-
-            return Number(a.updated) - Number(b.updated);
-        });
-    }
-
-
-
-
     async onload() {
         EnvConfig.ins.init(this);
+        await SettingService.ins.init()
+        initDock();
 
-        this.addDocSearchDock();
+        // 图标的制作参见帮助文档
+        for (const key in CUSTOM_ICON_MAP) {
+            if (Object.prototype.hasOwnProperty.call(CUSTOM_ICON_MAP, key)) {
+                const item = CUSTOM_ICON_MAP[key];
+                this.addIcons(item.source);
+            }
+        }
 
+        this.eventBus.on('switch-protyle', (e: any) => {
+            EnvConfig.ins.lastViewedDocId = e.detail.protyle.block.rootID;
+        })
     }
 
     onLayoutReady() {
@@ -49,48 +37,16 @@ export default class PluginSample extends Plugin {
     }
 
     async onunload() {
-        console.log(this.i18n.byePlugin);
-        showMessage("Goodbye SiYuan Plugin");
-        console.log("onunload");
     }
 
     uninstall() {
-        console.log("uninstall");
+        // console.log("uninstall");
     }
 
 
-    addDocSearchDock() {
-
-
-        let docSearchSvelet: BacklinkPanelDockSvelte;
-        let dockRet = this.addDock({
-            config: {
-                position: "RightBottom",
-                size: { width: 300, height: 0 },
-                icon: "iconGraph",
-                title: "反链面板",
-                show: false,
-            },
-            data: {},
-            type: "backlink-panel-dock",
-            resize() {
-                if (docSearchSvelet) {
-                    docSearchSvelet.resize(this.element.clientWidth);
-                }
-            },
-            update() {
-            },
-            init() {
-                this.element.innerHTML = "";
-                docSearchSvelet = new BacklinkPanelDockSvelte({
-                    target: this.element,
-                    props: {
-                    }
-                });
-            },
-            destroy() {
-            }
-        });
-
+    openSetting(): void {
+        openSettingsDialog();
     }
+
+
 }

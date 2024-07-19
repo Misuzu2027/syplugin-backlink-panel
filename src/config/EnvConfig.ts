@@ -44,8 +44,8 @@ export class EnvConfig {
     }
 
 
-    docSearchDock: { config: IPluginDockTab, model: IDockModel };
-    flatDocTreeDock: { config: IPluginDockTab, model: IDockModel };
+    // docSearchDock: { config: IPluginDockTab, model: IDockModel };
+    // flatDocTreeDock: { config: IPluginDockTab, model: IDockModel };
 
     private _notebookMap: Map<string, Notebook> = new Map();
     public async notebookMap(cache: boolean): Promise<Map<string, Notebook>> {

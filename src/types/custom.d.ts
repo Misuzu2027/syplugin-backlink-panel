@@ -45,3 +45,14 @@ interface IBacklinkCacheData {
     backlinks: IBacklinkData[];
     usedCache: boolean;
 }
+
+
+type IItemPropertyType =
+    "select" |
+    "text" |
+    "number" |
+    "button" |
+    "textarea" |
+    "switch" |
+    "order" |
+    "tips";

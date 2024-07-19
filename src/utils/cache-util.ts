@@ -1,11 +1,7 @@
 
-import Instance from "./Instance";
 
-export class BacklinkDocCache {
+export class CacheUtil {
 
-    public static get ins(): BacklinkDocCache {
-        return Instance.get(BacklinkDocCache);
-    }
 
     private cache: Map<string, { value: any, expiry: number }> = new Map();
 
@@ -63,10 +59,11 @@ export class BacklinkDocCache {
             }
         }
     }
+}
 
-    generateKey(...parts: string[]): string {
-        // 使用指定的分隔符连接所有字符串
-        const separator = ':';
-        return parts.join(separator);
-    }
+
+export function generateKey(...parts: string[]): string {
+    // 使用指定的分隔符连接所有字符串
+    const separator = ':';
+    return parts.join(separator);
 }

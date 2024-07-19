@@ -6,7 +6,7 @@
  * API 文档见 [API_zh_CN.md](https://github.com/siyuan-note/siyuan/blob/master/API_zh_CN.md)
  */
 
-import { fetchPost, fetchSyncPost, IBacklinkData, IWebSocketData } from "siyuan";
+import { fetchPost, fetchSyncPost, IWebSocketData } from "siyuan";
 import { isBoolean } from "./object-util";
 
 

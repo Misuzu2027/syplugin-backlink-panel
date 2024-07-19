@@ -1,21 +1,27 @@
-div.backlink-panel-dock div.protyle-wysiwyg.protyle-wysiwyg--attr {
+div.backlink-panel__area div.protyle-wysiwyg.protyle-wysiwyg--attr {
     padding-bottom: 0px;
     margin-bottom: 16px;
 }
 
-.documentName {
+.list-item__document-name {
     line-height: 28px;
     min-height: 28px;
     padding: 0 4px;
     display: flex;
-    cursor: default;
+    
     align-items: center;
     position: relative;
-    background-color: var(--b3-list-hover);
+
     text-align: left;
     border: 0;
     color: var(--b3-theme-on-background);
     margin: 8px 8px 0px;
     border-radius: var(--b3-border-radius);
+}
+
+
+div.backlink-panel__area .block__icon--show.block__icon.disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
 }
 
