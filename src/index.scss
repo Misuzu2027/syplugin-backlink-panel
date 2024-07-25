@@ -1,14 +1,19 @@
+/* 反链面板区域的样式 */
 div.backlink-panel__area div.protyle-wysiwyg.protyle-wysiwyg--attr {
     padding-bottom: 0px;
     margin-bottom: 16px;
 }
 
-.list-item__document-name {
+div.backlink-panel__area .sy__backlink .protyle-wysiwyg>[data-node-id]:last-child {
+    margin-bottom: 0px;
+}
+
+div.backlink-panel__area .list-item__document-name {
     line-height: 28px;
     min-height: 28px;
     padding: 0 4px;
     display: flex;
-    
+
     align-items: center;
     position: relative;
 
@@ -25,3 +30,38 @@ div.backlink-panel__area .block__icon--show.block__icon.disabled {
     cursor: not-allowed;
 }
 
+
+div.backlink-panel__area .hide-breadcrumb .protyle-breadcrumb__bar.protyle-breadcrumb__bar--nowrap {
+    display: none;
+}
+
+
+::highlight(search-result-mark) {
+    background-color: var(--b3-protyle-inline-mark-background);
+    color: var(--b3-protyle-inline-mark-color);
+}
+
+::highlight(search-result-focus) {
+    background-color: var(--b3-theme-primary-lighter);
+    color: var(--b3-protyle-inline-mark-color);
+}
+
+/* 文档底部样式 */
+div.backlink-panel-document-bottom__area {
+    padding: 16px 48px;
+
+}
+
+div.backlink-panel__area .sy__backlink li.list-item__document-name {
+    z-index: 1;
+}
+
+
+/* 手机端样式 */
+div.document-panel-plugin-mobile.backlink-panel-document-bottom__area {
+    padding: 8px 10px;
+}
+
+div.document-panel-plugin-mobile.backlink-panel-document-bottom__area .list-item__document-name.b3-list-item {
+    background-color: var(--b3-theme-surface);
+}

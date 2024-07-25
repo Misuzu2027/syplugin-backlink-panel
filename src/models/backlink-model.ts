@@ -1,5 +1,5 @@
 
-export interface IBacklinkPanelDataQueryParams {
+export interface IBacklinkFilterPanelDataQueryParams {
     rootId: string;
     focusBlockId?: string;
     queryParentDefBlock?: boolean;
@@ -20,21 +20,24 @@ export interface IBacklinkBlockQueryParams {
 
 export interface IBacklinkBlockNode {
     block: DefBlock;
+    documentBlock: DefBlock;
     concatContent: string;
     includeDirectDefBlockIds: Set<string>;
     includeRelatedDefBlockIds: Set<string>;
+    dynamicAnchorMap: Map<string, Set<string>>;
+    staticAnchorMap: Map<string, Set<string>>;
 }
 
 
-export interface IBacklinkPanelData {
+export interface IBacklinkFilterPanelData {
     rootId: string;
     backlinkBlockNodeArray: IBacklinkBlockNode[];
     // 当前文档的定义块
     curDocDefBlockArray: DefBlock[];
     // 有关联的定义块
     relatedDefBlockArray: DefBlock[];
-    // 关联块所属的文档
-    relatedDocumentArray: DefBlock[];
+    // 反链块所属的文档
+    backlinkDocumentArray: DefBlock[];
 
     userCache?: boolean;
 
@@ -42,11 +45,12 @@ export interface IBacklinkPanelData {
     // documentNodeArray: DocumentNode[];
 }
 
-export interface IBacklinkPanelRenderQueryParams {
-    keywordStr: string;
+export interface IPanelRenderBacklinkQueryParams {
     pageNum: number;
     pageSize: number;
+    backlinkCurDocDefBlockType: string;
     backlinkBlockSortMethod: BlockSortMethod;
+    backlinkKeywordStr: string;
     includeRelatedDefBlockIds: Set<string>;
     excludeRelatedDefBlockIds: Set<string>;
     includeDocumentIds: Set<string>;
@@ -54,15 +58,16 @@ export interface IBacklinkPanelRenderQueryParams {
 
 }
 
-export interface IBacklinkPanelRednerFilterQueryParams extends IBacklinkPanelRenderQueryParams {
+export interface IPanelRednerFilterQueryParams extends IPanelRenderBacklinkQueryParams {
     filterPanelCurDocDefBlockSortMethod: BlockSortMethod;
     filterPanelCurDocDefBlockKeywords: string;
 
+    filterPanelRelatedDefBlockType: string;
     filterPanelRelatedDefBlockSortMethod: BlockSortMethod;
     filterPanelRelatedDefBlockKeywords: string;
 
-    filterPanelRelatedDocumentSortMethod: BlockSortMethod;
-    filterPanelRelatedDocumentKeywords: string;
+    filterPanelBacklinkDocumentSortMethod: BlockSortMethod;
+    filterPanelBacklinkDocumentKeywords: string;
 }
 
 
@@ -70,15 +75,15 @@ export interface IBacklinkPanelRednerFilterQueryParams extends IBacklinkPanelRen
 export interface IBacklinkPanelRenderData {
     rootId: string;
 
-    backlinkDocArray: IBacklinkData[];
+    backlinkDataArray: IBacklinkData[];
 
     backlinkBlockNodeArray: IBacklinkBlockNode[];
     // 当前文档的定义块
     curDocDefBlockArray: DefBlock[];
     // 有关联的定义块
     relatedDefBlockArray: DefBlock[];
-    // 关联块所属的文档
-    relatedDocumentArray: DefBlock[];
+    // 反链块所属的文档块信息
+    backlinkDocumentArray: DefBlock[];
 
     pageNum: number;
     pageSize: number;
@@ -88,7 +93,7 @@ export interface IBacklinkPanelRenderData {
 
 export class BacklinkPanelFilterCriteria {
     // backlinkPanelBaseDataQueryParams: BacklinkPanelBaseDataQueryParams;
-    queryParams: IBacklinkPanelRednerFilterQueryParams;
+    queryParams: IPanelRednerFilterQueryParams;
     backlinkPanelFilterViewExpand: boolean;
 
 }

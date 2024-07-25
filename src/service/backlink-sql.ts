@@ -1,4 +1,4 @@
-import { IBacklinkBlockQueryParams, IBacklinkPanelDataQueryParams } from "@/models/backlink-model";
+import { IBacklinkBlockQueryParams, IBacklinkFilterPanelDataQueryParams } from "@/models/backlink-model";
 
 
 
@@ -8,7 +8,7 @@ import { IBacklinkBlockQueryParams, IBacklinkPanelDataQueryParams } from "@/mode
  * @returns 
  */
 export function generateGetDefBlockArraySql(
-    queryParams: IBacklinkPanelDataQueryParams,
+    queryParams: IBacklinkFilterPanelDataQueryParams,
 ): string {
     let rootId = queryParams.rootId;
     let focusBlockId = queryParams.focusBlockId;
@@ -67,7 +67,6 @@ export function generateGetParentDefBlockArraySql(
 ): string {
 
     let defBlockIds = queryParams.defBlockIds;
-    // let typeInSql = generateAndInConditions("type", includeTypes);
     let idInSql = generateAndInConditions("def_block_id", defBlockIds);
 
 

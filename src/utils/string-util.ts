@@ -1,3 +1,5 @@
+import { isArrayEmpty } from "./array-util";
+
 export function removePrefix(input: string, prefix: string): string {
     if (input.startsWith(prefix)) {
         return input.substring(prefix.length);
@@ -80,7 +82,25 @@ export function countOccurrences(str: string, subStr: string): number {
  */
 export function isValidStr(s: any): boolean {
     if (s == undefined || s == null || s === '') {
-		return false;
-	}
-	return true;
+        return false;
+    }
+    return true;
+}
+
+export function splitKeywordStringToArray(keywordStr: string): string[] {
+    let keywordArray = [];
+    if (!isValidStr(keywordStr)) {
+        return keywordArray;
+    }
+    // 分离空格
+    keywordArray = keywordStr.trim().replace(/\s+/g, " ").split(" ");
+    if (isArrayEmpty(keywordArray)) {
+        return keywordArray;
+    }
+    // 去重
+    keywordArray = Array.from(new Set(
+        keywordArray.filter((keyword) => keyword.length > 0),
+    ));
+    return keywordArray;
+
 }

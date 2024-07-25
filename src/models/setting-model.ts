@@ -2,26 +2,31 @@ import { isValidStr } from "@/utils/string-util";
 
 
 export class SettingConfig {
-    // 查询范围
+    // 筛选面板
     queryParentDefBlock: boolean;
     querrChildDefBlockForListItem: boolean;
     queryChildDefBlockForHeadline: boolean;
-    usePraentIdIdx: boolean;
-    // 反链面板默认
-    pageSize: number;
-    backlinkBlockSortMethod: BlockSortMethod;
     filterPanelCurDocDefBlockSortMethod: BlockSortMethod;
     filterPanelRelatedDefBlockSortMethod: BlockSortMethod;
-    filterPanelRelatedDocumentSortMethod: BlockSortMethod;
+    filterPanelBacklinkDocumentSortMethod: BlockSortMethod;
+
+
+    // 反链面板
+    pageSize: number;
+    backlinkBlockSortMethod: BlockSortMethod;
+    hideBacklinkProtyleBreadcrumb: boolean;
+    defaultExpandedListItemLevel: number;
 
 
     // 插件设置
     dockDisplay: Boolean;
     documentBottomDisplay: boolean;
-    topBarDisplan: boolean;
-    //缓存
+    topBarDisplay: boolean;
+    // 缓存
     cacheAfterResponseMs: number;
     cacheExpirationTime: number;
+    usePraentIdIdx: boolean;
+
 
 }
 

@@ -19,7 +19,7 @@ type BacklinkBlock = DefBlock & {
 
 type DefBlock = Block & {
     refCount: number;
-    anchor: string;
+    staticAnchor: string;
     selectionStatus: string;
     filterStatus: boolean;
 };
@@ -38,6 +38,8 @@ type BlockSortMethod =
     | "refCountDesc"
     | "alphabeticAsc"
     | "alphabeticDesc"
+    | "documentAlphabeticAsc"
+    | "documentAlphabeticDesc"
     ;
 
 

@@ -2,7 +2,7 @@
   "name": "syplugin-backlink-panel",
   "author": "Misuzu2027",
   "url": "https://github.com/Misuzu2027/syplugin-backlink-panel",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "minAppVersion": "3.0.1",
   "backends": [
    "all"
@@ -11,8 +11,8 @@
     "all"
   ],
   "displayName": {
-    "en_US": "Backlink Panel",
-    "zh_CN": "反链面板"
+    "en_US": "Filterable Backlink Panel",
+    "zh_CN": "反链过滤面板"
   },
   "description": {
     "en_US": "Filterable Backlink Panel",

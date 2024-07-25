@@ -7,8 +7,9 @@ import "@/index.scss";
 import { EnvConfig } from "./config/EnvConfig";
 import { CUSTOM_ICON_MAP } from "./models/icon-constant";
 import { SettingService } from "./service/setting/SettingService";
-import { initDock } from "./components/dock/dock-util";
 import { openSettingsDialog } from "./components/setting/setting-util";
+import { DocumentService } from "./components/document/DocumentService";
+import { DockService } from "./components/dock/DockServices";
 
 
 export default class PluginSample extends Plugin {
@@ -17,7 +18,8 @@ export default class PluginSample extends Plugin {
     async onload() {
         EnvConfig.ins.init(this);
         await SettingService.ins.init()
-        initDock();
+        DocumentService.ins.init();
+        DockService.ins.init();
 
         // 图标的制作参见帮助文档
         for (const key in CUSTOM_ICON_MAP) {
@@ -29,6 +31,12 @@ export default class PluginSample extends Plugin {
 
         this.eventBus.on('switch-protyle', (e: any) => {
             EnvConfig.ins.lastViewedDocId = e.detail.protyle.block.rootID;
+        })
+        this.eventBus.on('loaded-protyle-static', (e: any) => {
+            // console.log("index loaded-protyle-static ")
+            if (EnvConfig.ins.isMobile && !EnvConfig.ins.lastViewedDocId) {
+                EnvConfig.ins.lastViewedDocId = e.detail.protyle.block.rootID;
+            }
         })
     }
 

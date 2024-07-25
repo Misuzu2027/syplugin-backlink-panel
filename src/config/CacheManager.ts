@@ -1,4 +1,4 @@
-import { BacklinkPanelFilterCriteria, IBacklinkPanelData } from "@/models/backlink-model";
+import { BacklinkPanelFilterCriteria, IBacklinkFilterPanelData } from "@/models/backlink-model";
 import { CacheUtil, generateKey } from "@/utils/cache-util";
 import Instance from "@/utils/Instance";
 
@@ -11,17 +11,17 @@ export class CacheManager {
 
     private backlinkPanelBaseDataCache: CacheUtil = new CacheUtil();
     private backlinkDocApiDataCache: CacheUtil = new CacheUtil();
-    private backlinkPanelDefaultFilterCriteriaCache: CacheUtil = new CacheUtil();
-    private backlinkPanelSavedConditionsCache: CacheUtil = new CacheUtil();
+    private backlinkFilterPanelDefaultCriteriaCache: CacheUtil = new CacheUtil();
+    private backlinkPanelSavedCriteriaCache: CacheUtil = new CacheUtil();
 
     private dayTtl: number = 24 * 60 * 60 * 1000;
 
 
 
-    public setBacklinkPanelBaseData(rootId: string, value: IBacklinkPanelData, ttlSeconds: number) {
+    public setBacklinkPanelBaseData(rootId: string, value: IBacklinkFilterPanelData, ttlSeconds: number) {
         this.backlinkPanelBaseDataCache.set(rootId, value, ttlSeconds * 1000);
     }
-    public getBacklinkPanelBaseData(rootId: string): IBacklinkPanelData {
+    public getBacklinkPanelBaseData(rootId: string): IBacklinkFilterPanelData {
         return this.backlinkPanelBaseDataCache.get(rootId);
     }
     public deleteBacklinkPanelBaseData(rootId: string) {
@@ -46,18 +46,18 @@ export class CacheManager {
     }
 
 
-    public setBacklinkPanelDefaultFilterCriteria(rootId: string, value: BacklinkPanelFilterCriteria) {
-        this.backlinkPanelDefaultFilterCriteriaCache.set(rootId, value, this.dayTtl);
+    public setBacklinkFilterPanelDefaultCriteria(rootId: string, value: BacklinkPanelFilterCriteria) {
+        this.backlinkFilterPanelDefaultCriteriaCache.set(rootId, value, this.dayTtl);
     }
-    public getBacklinkPanelDefaultFilterCriteria(rootId: string): BacklinkPanelFilterCriteria {
-        return this.backlinkPanelDefaultFilterCriteriaCache.get(rootId);
+    public getBacklinkFilterPanelDefaultCriteria(rootId: string): BacklinkPanelFilterCriteria {
+        return this.backlinkFilterPanelDefaultCriteriaCache.get(rootId);
     }
 
 
-    public setBacklinkPanelSavedConditions(rootId: string, value: any) {
-        this.backlinkPanelSavedConditionsCache.set(rootId, value, this.dayTtl);
+    public setBacklinkPanelSavedCriteria(rootId: string, value: any) {
+        this.backlinkPanelSavedCriteriaCache.set(rootId, value, this.dayTtl);
     }
-    public getBacklinkPanelSavedConditions(rootId: string): any {
-        return this.backlinkPanelSavedConditionsCache.get(rootId);
+    public getBacklinkPanelSavedCriteria(rootId: string): any {
+        return this.backlinkPanelSavedCriteriaCache.get(rootId);
     }
 }

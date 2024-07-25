@@ -28,7 +28,7 @@ export class SettingService {
     public async init() {
         let persistentConfig = await getPersistentConfig();
         this._settingConfig = mergeObjects(persistentConfig, getDefaultSettingConfig());
-        console.log("init this._settingConfig ", this._settingConfig)
+        // console.log("init this._settingConfig ", this._settingConfig)
 
         if (this._settingConfig.usePraentIdIdx) {
             this.createBlocksParentIdIdx();
@@ -131,15 +131,25 @@ function getDefaultSettingConfig() {
     defaultConfig.queryParentDefBlock = true;
     defaultConfig.querrChildDefBlockForListItem = true;
     defaultConfig.queryChildDefBlockForHeadline = true;
-
-    defaultConfig.usePraentIdIdx = false;
-    defaultConfig.cacheAfterResponseMs = -1;
-    defaultConfig.cacheExpirationTime = 5 * 60;
-    defaultConfig.pageSize = 8;
-    defaultConfig.backlinkBlockSortMethod = "modifiedDesc";
     defaultConfig.filterPanelCurDocDefBlockSortMethod = "typeAndContent";
     defaultConfig.filterPanelRelatedDefBlockSortMethod = "modifiedDesc";
-    defaultConfig.filterPanelRelatedDocumentSortMethod = "createdDesc";
+    defaultConfig.filterPanelBacklinkDocumentSortMethod = "createdDesc";
+
+
+    defaultConfig.pageSize = 8;
+    defaultConfig.backlinkBlockSortMethod = "modifiedDesc";
+    defaultConfig.hideBacklinkProtyleBreadcrumb = false;
+    defaultConfig.defaultExpandedListItemLevel = 0;
+
+
+    defaultConfig.dockDisplay = true;
+    defaultConfig.documentBottomDisplay = true;
+    defaultConfig.topBarDisplay = true;
+    
+    defaultConfig.cacheAfterResponseMs = -1;
+    defaultConfig.cacheExpirationTime = 5 * 60;
+    defaultConfig.usePraentIdIdx = false;
+
 
     return defaultConfig;
 }

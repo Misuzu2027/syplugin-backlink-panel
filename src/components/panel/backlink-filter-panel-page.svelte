@@ -1,0 +1,1652 @@
+<script lang="ts">
+    import { EnvConfig } from "@/config/EnvConfig";
+    import {
+        BACKLINK_BLOCK_SORT_METHOD_ELEMENT,
+        CUR_DOC_DEF_BLOCK_SORT_METHOD_ELEMENT,
+        RELATED_DEF_BLOCK_SORT_METHOD_ELEMENT,
+        RELATED_DEF_BLOCK_TYPE_ELEMENT,
+        RELATED_DOCMUMENT_SORT_METHOD_ELEMENT,
+    } from "@/models/backlink-constant";
+    import {
+        IBacklinkFilterPanelData,
+        IBacklinkFilterPanelDataQueryParams,
+        IBacklinkPanelRenderData,
+        IPanelRednerFilterQueryParams,
+        BacklinkPanelFilterCriteria,
+    } from "@/models/backlink-model";
+    import {
+        defBlockArrayTypeAndKeywordFilter,
+        defBlockArraySort,
+        getBacklinkPanelData,
+        getBacklinkPanelRenderData,
+        getTurnPageBacklinkPanelRenderData,
+    } from "@/service/backlink-data";
+    import { isArrayEmpty, isArrayNotEmpty } from "@/utils/array-util";
+    import {
+        clearProtyleGutters,
+        getElementsBeforeDepth,
+        highlightElementTextByCss,
+        getElementsAtDepth,
+        syHasChildListNode,
+    } from "@/utils/html-util";
+    import {
+        isValidStr,
+        removePrefixAndSuffix,
+        splitKeywordStringToArray,
+    } from "@/utils/string-util";
+    import {
+        Constants,
+        openMobileFileById,
+        openTab,
+        Protyle,
+        TProtyleAction,
+    } from "siyuan";
+    import { onDestroy, onMount } from "svelte";
+    import { getBlockTypeIconHref } from "@/utils/icon-util";
+    import { CacheManager } from "@/config/CacheManager";
+    import { BacklinkFilterPanelCriteriaService } from "@/service/setting/BacklinkPanelFilterCriteriaService";
+    import { SettingService } from "@/service/setting/SettingService";
+    import { delayedTwiceRefresh } from "@/utils/timing-util";
+
+    export let rootId: string;
+    export let focusBlockId: string;
+    // 用来监听变化
+    let previousRootId: string;
+    let previousFocusBlockId: string;
+    // 监听 rootId 变化
+    $: if (rootId !== previousRootId || focusBlockId !== previousFocusBlockId) {
+        initData();
+    }
+
+    /* 绑定 HTML 元素 */
+    let curRootElement: HTMLElement;
+    let backlinkULElement: HTMLElement;
+
+    /* 数据 */
+    let backlinkFilterPanelBaseData: IBacklinkFilterPanelData;
+    let backlinkFilterPanelRenderData: IBacklinkPanelRenderData;
+    // 用于排序、关键字查找筛选条件，此时不会改动反链信息，所以在页面中处理。
+    let queryParams: IPanelRednerFilterQueryParams;
+    let savedQueryParamMap: Map<string, IPanelRednerFilterQueryParams>;
+
+    /* 全局使用 */
+    let editors: Protyle[] = [];
+    let doubleClickTimeout: number = 1;
+    let clickCount: number = 0;
+    let clickTimeoutId: NodeJS.Timeout;
+    let inputChangeTimeoutId: NodeJS.Timeout;
+
+    /* 控制页面元素的 */
+    let panelFilterViewExpand: boolean = false;
+    let panelBacklinkViewExpand: boolean = true;
+    let displayHintPanelBaseDataCacheUsage: boolean = false;
+    let displayHintBacklinkBlockCacheUsage: boolean = false;
+    let hideBacklinkProtyleBreadcrumb: boolean = false;
+    let showSaveCriteriaInputBox: boolean = false;
+    let saveCriteriaInputText: string = "";
+
+    $: updateDefaultCriteria(queryParams, panelFilterViewExpand);
+
+    onMount(async () => {
+        initData();
+        initEvent();
+    });
+
+    onDestroy(async () => {
+        clearBacklinkProtyleList();
+    });
+
+    function updateDefaultCriteria(
+        queryParams: IPanelRednerFilterQueryParams,
+        backlinkPanelFilterViewExpand: boolean,
+    ) {
+        if (!rootId || !queryParams) {
+            return;
+        }
+        let criteria: BacklinkPanelFilterCriteria = {
+            queryParams,
+            backlinkPanelFilterViewExpand,
+        };
+        BacklinkFilterPanelCriteriaService.ins.updatePanelCriteria(
+            rootId,
+            criteria,
+        );
+    }
+
+    function initEvent() {
+        curRootElement.parentElement.parentElement.addEventListener(
+            "scroll",
+            () => {
+                clearProtyleGutters(backlinkULElement);
+            },
+        );
+
+        backlinkULElement.addEventListener("mouseleave", () => {
+            clearProtyleGutters(backlinkULElement);
+        });
+        backlinkULElement.addEventListener("mousemove", (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+
+            // 检查是否是移动到文档名称元素上
+            if (
+                (target && target.classList.contains("b3-list-item__text")) ||
+                target.classList.contains("list-item__document-name")
+            ) {
+                clearProtyleGutters(backlinkULElement);
+            }
+        });
+    }
+
+    function clickBacklinkDocumentLiElement(event: MouseEvent) {
+        const target = event.currentTarget as HTMLElement;
+        if (event.ctrlKey) {
+            let rootId = target.getAttribute("data-node-id");
+            openDocumentTab(rootId);
+            return;
+        }
+        toggleBacklinkDocument(target);
+    }
+
+    function toggleBacklinkDocument(documentLiElement: HTMLElement) {
+        let closeStatus = documentLiElement.classList.contains("backlink-hide");
+        if (closeStatus) {
+            expandBacklinkDocument(documentLiElement);
+        } else {
+            collapseBacklinkDocument(documentLiElement);
+        }
+    }
+
+    function expandBacklinkDocument(documentLiElement: HTMLElement) {
+        documentLiElement.nextElementSibling.classList.remove("fn__none");
+        documentLiElement.classList.remove("backlink-hide");
+        documentLiElement
+            .querySelector(".b3-list-item__arrow")
+            .classList.add("b3-list-item__arrow--open");
+    }
+
+    function collapseBacklinkDocument(documentLiElement: HTMLElement) {
+        documentLiElement.nextElementSibling.classList.add("fn__none");
+        documentLiElement.classList.add("backlink-hide");
+        documentLiElement
+            .querySelector(".b3-list-item__arrow")
+            .classList.remove("b3-list-item__arrow--open");
+    }
+
+    function expandAllBacklinkDocument() {
+        let documentLiElementArray = backlinkULElement.querySelectorAll(
+            "li.list-item__document-name",
+        );
+        for (const documentLiElement of documentLiElementArray) {
+            expandBacklinkDocument(documentLiElement as HTMLElement);
+        }
+    }
+
+    function collapseAllBacklinkDocument() {
+        let documentLiElementArray = backlinkULElement.querySelectorAll(
+            "li.list-item__document-name",
+        );
+        for (const documentLiElement of documentLiElementArray) {
+            collapseBacklinkDocument(documentLiElement as HTMLElement);
+        }
+    }
+
+    function clickExpandAllListItemNode(event: MouseEvent) {
+        const target = event.target as HTMLElement;
+
+        const parentLiElement = target.closest(".list-item__document-name");
+        if (!parentLiElement) {
+            return;
+        }
+        expandAllListItemNode(
+            parentLiElement.nextElementSibling as HTMLElement,
+        );
+    }
+
+    function expandAllListItemNode(element: HTMLElement) {
+        if (!element) {
+            return;
+        }
+        let protyleWysiwygElement = element.querySelector(
+            "div.protyle-wysiwyg.protyle-wysiwyg--attr",
+        );
+        if (!protyleWysiwygElement) {
+            return;
+        }
+        const liNodes = protyleWysiwygElement.querySelectorAll<HTMLElement>(
+            'div[data-type="NodeListItem"].li[fold="1"]',
+        );
+
+        liNodes.forEach((node) => {
+            node.removeAttribute("fold");
+        });
+    }
+
+    function expandListItemNode(element: Element, depth: number) {
+        if (!element || depth < 1) {
+            return;
+        }
+        let protyleWysiwygElement = element.querySelector(
+            "div.protyle-wysiwyg.protyle-wysiwyg--attr",
+        );
+        if (!protyleWysiwygElement) {
+            return;
+        }
+
+        // 先递归展开到指定深度
+        depth = depth - 1;
+        const liNodes = getElementsBeforeDepth(
+            protyleWysiwygElement as HTMLElement,
+            'div[data-type="NodeListItem"].li',
+            depth,
+        );
+
+        liNodes.forEach((node) => {
+            node.removeAttribute("fold");
+        });
+
+        // 然后获取指定深度的列表节点，如果存在子节点加上折叠。
+        const collapseLiNodes = getElementsAtDepth(
+            protyleWysiwygElement as HTMLElement,
+            'div[data-type="NodeListItem"].li',
+            depth,
+        );
+
+        collapseLiNodes.forEach((node) => {
+            if (syHasChildListNode(node)) {
+                node.setAttribute("fold", "1");
+            }
+        });
+    }
+
+    function clickCollapseAllListItemNode(event: MouseEvent) {
+        const target = event.target as HTMLElement;
+
+        const parentLiElement = target.closest(".list-item__document-name");
+        if (!parentLiElement) {
+            return;
+        }
+        collapseAllListItemNode(parentLiElement.nextElementSibling);
+    }
+
+    function collapseAllListItemNode(element: Element) {
+        if (!element) {
+            return;
+        }
+        let protyleWysiwygElement = element.querySelector(
+            "div.protyle-wysiwyg.protyle-wysiwyg--attr",
+        );
+        if (!protyleWysiwygElement) {
+            return;
+        }
+        const liNodes = protyleWysiwygElement.querySelectorAll<HTMLElement>(
+            'div[data-type="NodeListItem"].li:not([fold])',
+        );
+        liNodes.forEach((node) => {
+            node.setAttribute("fold", "1");
+        });
+    }
+
+    function openDocumentTab(rootId: string) {
+        let actions: TProtyleAction[] = [Constants.CB_GET_CONTEXT];
+
+        if (EnvConfig.ins.isMobile) {
+            openMobileFileById(EnvConfig.ins.app, rootId, actions);
+        } else {
+            openTab({
+                app: EnvConfig.ins.app,
+                doc: {
+                    id: rootId,
+                    action: actions,
+                },
+            });
+        }
+    }
+
+    async function initData() {
+        // console.log("initData rootId", rootId);
+        if (!rootId) {
+            return;
+        }
+        clearBacklinkProtyleList();
+
+        previousRootId = rootId;
+        previousFocusBlockId = focusBlockId;
+        let settingConfig = SettingService.ins.SettingConfig;
+        let backlinkPanelDataQueryParams: IBacklinkFilterPanelDataQueryParams =
+            {
+                rootId,
+                focusBlockId,
+                queryParentDefBlock: settingConfig.queryParentDefBlock,
+                querrChildDefBlockForListItem:
+                    settingConfig.querrChildDefBlockForListItem,
+                queryChildDefBlockForHeadline:
+                    settingConfig.queryChildDefBlockForHeadline,
+            };
+        hideBacklinkProtyleBreadcrumb =
+            settingConfig.hideBacklinkProtyleBreadcrumb;
+
+        let backlinkPanelBaseDataTemp = await getBacklinkPanelData(
+            backlinkPanelDataQueryParams,
+        );
+        if (rootId != backlinkPanelBaseDataTemp.rootId) {
+            return;
+        }
+        backlinkFilterPanelBaseData = backlinkPanelBaseDataTemp;
+
+        if (
+            backlinkFilterPanelBaseData &&
+            backlinkFilterPanelBaseData.userCache
+        ) {
+            displayHintPanelBaseDataCacheUsage = true;
+        } else {
+            displayHintPanelBaseDataCacheUsage = false;
+        }
+
+        let defaultPanelCriteria =
+            await BacklinkFilterPanelCriteriaService.ins.getPanelCriteria(
+                rootId,
+            );
+
+        queryParams = defaultPanelCriteria.queryParams;
+        panelFilterViewExpand =
+            defaultPanelCriteria.backlinkPanelFilterViewExpand;
+        queryParams.pageNum = 1;
+
+        savedQueryParamMap =
+            await BacklinkFilterPanelCriteriaService.ins.getPanelSavedCriteriaMap(
+                rootId,
+            );
+
+        updateRenderData();
+    }
+
+    async function updateRenderData() {
+        let backlinkPanelRenderDataTemp = await getBacklinkPanelRenderData(
+            backlinkFilterPanelBaseData,
+            queryParams,
+        );
+        if (backlinkPanelRenderDataTemp.rootId != rootId) {
+            return;
+        }
+        backlinkFilterPanelRenderData = backlinkPanelRenderDataTemp;
+
+        queryParams = queryParams;
+
+        refreshFilterDisplayData();
+
+        refreshBacklinkPreview();
+    }
+
+    async function pageTurning(pageNumParam: number) {
+        if (
+            pageNumParam < 1 ||
+            pageNumParam > backlinkFilterPanelRenderData.totalPage
+        ) {
+            return;
+        }
+        queryParams.pageNum = pageNumParam;
+        let pageBacklinkPanelRenderData =
+            await getTurnPageBacklinkPanelRenderData(
+                backlinkFilterPanelRenderData.rootId,
+                backlinkFilterPanelRenderData.backlinkBlockNodeArray,
+                queryParams,
+            );
+
+        backlinkFilterPanelRenderData.backlinkDataArray =
+            pageBacklinkPanelRenderData.backlinkDataArray;
+        backlinkFilterPanelRenderData.pageNum =
+            pageBacklinkPanelRenderData.pageNum;
+        backlinkFilterPanelRenderData.usedCache =
+            pageBacklinkPanelRenderData.usedCache;
+        queryParams = queryParams;
+
+        refreshBacklinkPreview();
+    }
+
+    async function refreshFilterDisplayData() {
+        let curDocDefBlockArray =
+            backlinkFilterPanelRenderData.curDocDefBlockArray;
+        let relatedDefBlockArray =
+            backlinkFilterPanelRenderData.relatedDefBlockArray;
+        let backlinkDocumentArray =
+            backlinkFilterPanelRenderData.backlinkDocumentArray;
+        let realatedDefBLockType = queryParams.filterPanelRelatedDefBlockType;
+
+        // 先匹配关键字
+        defBlockArrayTypeAndKeywordFilter(
+            curDocDefBlockArray,
+            null,
+            queryParams.filterPanelCurDocDefBlockKeywords,
+        );
+        defBlockArrayTypeAndKeywordFilter(
+            relatedDefBlockArray,
+            realatedDefBLockType,
+            queryParams.filterPanelRelatedDefBlockKeywords,
+        );
+        defBlockArrayTypeAndKeywordFilter(
+            backlinkDocumentArray,
+            null,
+            queryParams.filterPanelBacklinkDocumentKeywords,
+        );
+        // 排序
+        await defBlockArraySort(
+            curDocDefBlockArray,
+            queryParams.filterPanelCurDocDefBlockSortMethod,
+        );
+        await defBlockArraySort(
+            relatedDefBlockArray,
+            queryParams.filterPanelRelatedDefBlockSortMethod,
+        );
+        await defBlockArraySort(
+            backlinkDocumentArray,
+            queryParams.filterPanelBacklinkDocumentSortMethod,
+        );
+
+        backlinkFilterPanelRenderData = backlinkFilterPanelRenderData;
+        // console.log("refreshFilterDisplayData ", backlinkPanelRenderData);
+    }
+
+    function refreshBacklinkPreview() {
+        clearBacklinkProtyleList();
+
+        batchCreateOfficialBacklinkProtyle(
+            backlinkFilterPanelRenderData.backlinkDocumentArray,
+            backlinkFilterPanelRenderData.backlinkDataArray,
+        );
+
+        if (backlinkFilterPanelRenderData.usedCache) {
+            displayHintBacklinkBlockCacheUsage = true;
+        } else {
+            displayHintBacklinkBlockCacheUsage = false;
+        }
+    }
+
+    function clearBacklinkProtyleList() {
+        if (isArrayNotEmpty(editors)) {
+            editors.forEach((item) => {
+                item.destroy();
+            });
+        }
+        editors = [];
+        if (backlinkULElement) {
+            backlinkULElement.innerHTML = "";
+        }
+    }
+
+    function batchCreateOfficialBacklinkProtyle(
+        backlinkDocumentArray: DefBlock[],
+        backlinkDataArray: IBacklinkData[],
+    ) {
+        if (isArrayEmpty(backlinkDataArray)) {
+            let pElement = document.createElement("p");
+            pElement.style.padding = "5px 15px";
+            pElement.innerText = window.siyuan.languages.emptyContent;
+            backlinkULElement.append(pElement);
+        }
+
+        for (const backlinkDoc of backlinkDataArray) {
+            queryParams.includeRelatedDefBlockIds;
+            let backlinkNode = backlinkDoc.backlinkBlock;
+            let notebookId = backlinkNode.box;
+
+            let documentName: string = "";
+            for (const document of backlinkDocumentArray) {
+                if (document.id == backlinkNode.root_id) {
+                    documentName = document.content;
+                    break;
+                }
+            }
+            let backlinkRootId = backlinkDoc.blockPaths[0].id;
+            let backlinkRootHpath = backlinkDoc.blockPaths[0].name;
+
+            createdDocumentLiElement(
+                documentName,
+                backlinkRootId,
+                backlinkRootHpath,
+            );
+
+            let backlinks: IBacklinkData[] = [backlinkDoc];
+            const editorElement = document.createElement("div");
+            editorElement.style.minHeight = "auto";
+
+            backlinkULElement.append(editorElement);
+            const editor = new Protyle(EnvConfig.ins.app, editorElement, {
+                blockId: backlinkRootId,
+                backlinkData: backlinks,
+                render: {
+                    background: false,
+                    title: false,
+                    gutter: true,
+                    scroll: false,
+                    breadcrumb: false,
+                },
+            });
+            afterCreateBacklinkProtyle(editor);
+
+            editor.protyle.notebookId = notebookId;
+            editors.push(editor);
+        }
+    }
+
+    function afterCreateBacklinkProtyle(protyle: Protyle) {
+        let protyleContentElement = protyle.protyle.contentElement;
+
+        let keywordArray = splitKeywordStringToArray(
+            queryParams.backlinkKeywordStr,
+        );
+        delayedTwiceRefresh(() => {
+            highlightElementTextByCss(protyleContentElement, keywordArray);
+        }, 0);
+
+        // 展开列表项
+        let defaultExpandedListItemLevel =
+            SettingService.ins.SettingConfig.defaultExpandedListItemLevel;
+        if (defaultExpandedListItemLevel > 0) {
+            expandListItemNode(
+                protyle.protyle.contentElement,
+                defaultExpandedListItemLevel,
+            );
+        }
+    }
+
+    function createdDocumentLiElement(
+        documentName: string,
+        backlinkRootId: string,
+        backlinkRootHpath: string,
+    ) {
+        let documentLiElement = document.createElement("li");
+
+        documentLiElement.classList.add(
+            "b3-list-item",
+            "b3-list-item--hide-action",
+            "list-item__document-name",
+        );
+        documentLiElement.setAttribute("data-node-id", backlinkRootId);
+
+        documentLiElement.innerHTML = `
+<span style="padding-left: 4px;margin-right: 2px" class="b3-list-item__toggle b3-list-item__toggle--hl">
+<svg class="b3-list-item__arrow b3-list-item__arrow--open"><use xlink:href="#iconRight"></use></svg>
+</span>
+<svg class="b3-list-item__graphic popover__block"><use xlink:href="#iconFile"></use></svg>
+<span class="b3-list-item__text" class="ariaLabel" aria-label="${backlinkRootHpath}"  >
+${documentName}
+</span>
+<svg class="b3-list-item__graphic counter ariaLabel expand-listitem-icon" aria-label="展开所有列表项"><use xlink:href="#LiElementExpand"></use></svg>
+<svg class="b3-list-item__graphic counter ariaLabel collapse-listitem-icon" aria-label="折叠所有列表项"><use xlink:href="#LiElementCollapse"></use></svg>
+`;
+        documentLiElement.addEventListener("click", (event: MouseEvent) => {
+            clickBacklinkDocumentLiElement(event);
+        });
+
+        documentLiElement
+            .querySelector(
+                "li > svg.b3-list-item__graphic.counter.ariaLabel.expand-listitem-icon",
+            )
+            .addEventListener("click", (event: MouseEvent) => {
+                clickExpandAllListItemNode(event);
+                event.stopPropagation();
+            });
+
+        documentLiElement
+            .querySelector(
+                "li > svg.b3-list-item__graphic.counter.ariaLabel.collapse-listitem-icon",
+            )
+            .addEventListener("click", (event: MouseEvent) => {
+                clickCollapseAllListItemNode(event);
+                event.stopPropagation();
+            });
+
+        backlinkULElement.append(documentLiElement);
+    }
+
+    function getDefBlockAriaLabel(
+        defBlock: DefBlock,
+        showContent: boolean = false,
+    ): string {
+        let ariaLabel = "";
+        if (!defBlock) {
+            return ariaLabel;
+        }
+        let ariaLabelRow = [];
+        if (defBlock.name) {
+            ariaLabelRow.push(
+                `<br>${window.siyuan.languages.name}: ${defBlock.name}`,
+            );
+        }
+        if (defBlock.alias) {
+            ariaLabelRow.push(
+                `<br>${window.siyuan.languages.alias}: ${defBlock.alias}`,
+            );
+        }
+        if (defBlock.staticAnchor) {
+            ariaLabelRow.push(
+                `<br>${window.siyuan.languages.anchor}: ${defBlock.staticAnchor}`,
+            );
+        }
+        if (showContent) {
+            ariaLabelRow.push(`<br> ${defBlock.content.substring(0, 100)}`);
+        }
+        // if (defBlock.memo) {
+        //     ariaLabelRow.push(
+        //         `<br>${window.siyuan.languages.memo} ${defBlock.memo}`,
+        //     );
+        // }
+        ariaLabel = ariaLabelRow.join("");
+        ariaLabel = removePrefixAndSuffix(ariaLabel, "<br>", "<br>");
+        return ariaLabel;
+    }
+
+    function clearCacheAndRefresh() {
+        CacheManager.ins.deleteBacklinkPanelAllCache(rootId);
+        initData();
+    }
+
+    function resetFilterQueryParametersToDefault() {
+        let defaultQueryParams =
+            BacklinkFilterPanelCriteriaService.ins.getDefaultQueryParams();
+
+        queryParams.filterPanelCurDocDefBlockSortMethod =
+            defaultQueryParams.filterPanelCurDocDefBlockSortMethod;
+        queryParams.filterPanelCurDocDefBlockKeywords = "";
+
+        queryParams.includeRelatedDefBlockIds.clear();
+        queryParams.excludeRelatedDefBlockIds.clear();
+        queryParams.filterPanelRelatedDefBlockType =
+            defaultQueryParams.filterPanelRelatedDefBlockType;
+        queryParams.filterPanelRelatedDefBlockSortMethod =
+            defaultQueryParams.filterPanelRelatedDefBlockSortMethod;
+        queryParams.filterPanelRelatedDefBlockKeywords = "";
+
+        queryParams.includeDocumentIds.clear();
+        queryParams.excludeDocumentIds.clear();
+        queryParams.filterPanelBacklinkDocumentSortMethod =
+            defaultQueryParams.filterPanelBacklinkDocumentSortMethod;
+        queryParams.filterPanelBacklinkDocumentKeywords = "";
+        queryParams = queryParams;
+        updateRenderData();
+    }
+
+    function resetBacklinkQueryParametersToDefault() {
+        let defaultQueryParams =
+            BacklinkFilterPanelCriteriaService.ins.getDefaultQueryParams();
+        queryParams.backlinkCurDocDefBlockType =
+            defaultQueryParams.backlinkCurDocDefBlockType;
+        queryParams.backlinkBlockSortMethod =
+            defaultQueryParams.backlinkBlockSortMethod;
+        queryParams.backlinkKeywordStr = "";
+
+        updateRenderData();
+    }
+
+    // 处理定义块点击事件
+    function handleRelatedDefBlockClick(event, defBlock: DefBlock) {
+        if (event) {
+        }
+        clickCount++;
+        if (clickCount === 1) {
+            // console.log(`关联块左键单击 : ${event.type} ${event.button}`);
+            clearTimeout(clickTimeoutId);
+            clickTimeoutId = setTimeout(() => {
+                clickCount = 0;
+                addIncludeRelatedDefBlockCondition(defBlock);
+            }, doubleClickTimeout);
+        } else {
+            // console.log(`关联块左键双击 : ${event.type} ${event.button}`);
+            clearTimeout(clickTimeoutId);
+            clickCount = 0;
+            addExcludeRelatedDocBlockCondition(defBlock);
+        }
+    }
+    function handleRelatedDefBlockContextmenu(event, defBlock: DefBlock) {
+        if (event) {
+        }
+        // console.log(`关联块右键单击 : ${event.type} ${event.button}`);
+        addExcludeRelatedDefBlockCondition(defBlock);
+    }
+
+    // 处理文档块点击事件
+    function handleRelatedDocBlockClick(event: MouseEvent, defBlock: DefBlock) {
+        if (event) {
+        }
+        if (event.shiftKey) {
+            addExcludeRelatedDocBlockCondition(defBlock);
+            return;
+        }
+        clickCount++;
+        if (clickCount === 1) {
+            clearTimeout(clickTimeoutId);
+            clickTimeoutId = setTimeout(() => {
+                // console.log(`文档块左键单击 : ${event.type} ${event.button}`);
+                clickCount = 0;
+                addIncludeRelatedDocBlockCondition(defBlock);
+            }, doubleClickTimeout);
+        } else {
+            // console.log(`文档块左键双击 : ${event.type} ${event.button}`);
+            clearTimeout(clickTimeoutId);
+            clickCount = 0;
+            addExcludeRelatedDocBlockCondition(defBlock);
+        }
+    }
+
+    function handleRelatedDocBlockContextmenu(event, defBlock: DefBlock) {
+        if (event) {
+        }
+        // console.log(`文档块右键单击 : ${event.type} ${event.button}`);
+        addExcludeRelatedDocBlockCondition(defBlock);
+    }
+
+    function addIncludeRelatedDefBlockCondition(defBlock: DefBlock) {
+        let includeRelatedDefBlockIds = queryParams.includeRelatedDefBlockIds;
+        let defBlockId = defBlock.id;
+        let recover = recoverDefBlockStatus(defBlock);
+        if (!recover) {
+            includeRelatedDefBlockIds.add(defBlockId);
+        }
+
+        updateRenderData();
+    }
+
+    function addExcludeRelatedDefBlockCondition(defBlock: DefBlock) {
+        let excludeRelatedDefBlockIds = queryParams.excludeRelatedDefBlockIds;
+        let defBlockId = defBlock.id;
+        let recover = recoverDefBlockStatus(defBlock);
+        if (!recover) {
+            excludeRelatedDefBlockIds.add(defBlockId);
+        }
+
+        updateRenderData();
+    }
+
+    function addIncludeRelatedDocBlockCondition(defBlock: DefBlock) {
+        let includeDocumentIds = queryParams.includeDocumentIds;
+        let defBlockId = defBlock.id;
+        let recover = recoverDocBlockStatus(defBlock);
+        if (!recover) {
+            includeDocumentIds.add(defBlockId);
+        }
+
+        updateRenderData();
+    }
+
+    function addExcludeRelatedDocBlockCondition(defBlock: DefBlock) {
+        let excludeDocumentIds = queryParams.excludeDocumentIds;
+        let defBlockId = defBlock.id;
+        let recover = recoverDocBlockStatus(defBlock);
+        if (!recover) {
+            excludeDocumentIds.add(defBlockId);
+        }
+
+        updateRenderData();
+    }
+
+    function recoverDefBlockStatus(defBlock: DefBlock): boolean {
+        let includeRelatedDefBlockIds = queryParams.includeRelatedDefBlockIds;
+        let excludeRelatedDefBlockIds = queryParams.excludeRelatedDefBlockIds;
+        let defBlockId = defBlock.id;
+        if (includeRelatedDefBlockIds.has(defBlockId)) {
+            includeRelatedDefBlockIds.delete(defBlockId);
+            return true;
+        }
+        if (excludeRelatedDefBlockIds.has(defBlockId)) {
+            excludeRelatedDefBlockIds.delete(defBlockId);
+            return true;
+        }
+        return false;
+    }
+
+    function recoverDocBlockStatus(defBlock: DefBlock): boolean {
+        let includeDocumentIds = queryParams.includeDocumentIds;
+        let excludeDocumentIds = queryParams.excludeDocumentIds;
+        let defBlockId = defBlock.id;
+        if (includeDocumentIds.has(defBlockId)) {
+            includeDocumentIds.delete(defBlockId);
+            return true;
+        }
+        if (excludeDocumentIds.has(defBlockId)) {
+            excludeDocumentIds.delete(defBlockId);
+            return true;
+        }
+        return false;
+    }
+
+    function handleCriteriaConfirm() {
+        if (!isValidStr(saveCriteriaInputText)) {
+            return;
+        }
+        let savedQueryParams: IPanelRednerFilterQueryParams = JSON.parse(
+            JSON.stringify(queryParams),
+        );
+        if (!savedQueryParamMap) {
+            savedQueryParamMap = new Map();
+        }
+        console.log(
+            "handleCriteriaConfirm saveCriteriaInputText : ",
+            saveCriteriaInputText,
+            " savedQueryParams : ",
+            savedQueryParams,
+        );
+        savedQueryParamMap.set(saveCriteriaInputText, savedQueryParams);
+        BacklinkFilterPanelCriteriaService.ins.updatePanelSavedCriteriaMap(
+            rootId,
+            savedQueryParamMap,
+        );
+        savedQueryParamMap = savedQueryParamMap;
+
+        saveCriteriaInputText = "";
+        showSaveCriteriaInputBox = false;
+    }
+    function handleCriteriaCancel() {
+        saveCriteriaInputText = "";
+        showSaveCriteriaInputBox = false;
+    }
+    function hadnleSavedPanelCriteriaClick(name: string) {
+        let savedQueryParam = savedQueryParamMap.get(name);
+        if (!savedQueryParam) {
+            return;
+        }
+        queryParams.pageNum = 1;
+        queryParams.backlinkCurDocDefBlockType =
+            savedQueryParam.backlinkCurDocDefBlockType;
+        queryParams.backlinkBlockSortMethod =
+            savedQueryParam.backlinkBlockSortMethod;
+        queryParams.backlinkKeywordStr = savedQueryParam.backlinkKeywordStr;
+        queryParams.includeRelatedDefBlockIds =
+            savedQueryParam.includeRelatedDefBlockIds;
+        queryParams.excludeRelatedDefBlockIds =
+            savedQueryParam.excludeRelatedDefBlockIds;
+        queryParams.includeDocumentIds = savedQueryParam.includeDocumentIds;
+        queryParams.excludeDocumentIds = savedQueryParam.excludeDocumentIds;
+        queryParams.filterPanelCurDocDefBlockSortMethod =
+            savedQueryParam.filterPanelCurDocDefBlockSortMethod;
+        queryParams.filterPanelCurDocDefBlockKeywords =
+            savedQueryParam.filterPanelCurDocDefBlockKeywords;
+        queryParams.filterPanelRelatedDefBlockType =
+            savedQueryParam.filterPanelRelatedDefBlockType;
+        queryParams.filterPanelRelatedDefBlockSortMethod =
+            savedQueryParam.filterPanelRelatedDefBlockSortMethod;
+        queryParams.filterPanelRelatedDefBlockKeywords =
+            savedQueryParam.filterPanelRelatedDefBlockKeywords;
+        queryParams.filterPanelBacklinkDocumentSortMethod =
+            savedQueryParam.filterPanelBacklinkDocumentSortMethod;
+        queryParams.filterPanelBacklinkDocumentKeywords =
+            savedQueryParam.filterPanelBacklinkDocumentKeywords;
+
+        console.log("hadnleSavedPanelCriteriaClick", queryParams);
+
+        updateRenderData();
+    }
+    function hadnleSavedPanelCriteriaDeleteClick(name: string) {
+        savedQueryParamMap.delete(name);
+        BacklinkFilterPanelCriteriaService.ins.updatePanelSavedCriteriaMap(
+            rootId,
+            savedQueryParamMap,
+        );
+        savedQueryParamMap = savedQueryParamMap;
+    }
+
+    function handleBacklinkKeywordInput() {
+        // 清除之前的定时器
+        clearTimeout(inputChangeTimeoutId);
+
+        inputChangeTimeoutId = setTimeout(() => {
+            updateRenderData();
+        }, 450);
+    }
+
+    function handleFilterPanelInput() {
+        // 清除之前的定时器
+        clearTimeout(inputChangeTimeoutId);
+
+        inputChangeTimeoutId = setTimeout(() => {
+            refreshFilterDisplayData();
+        }, 100);
+    }
+
+    function getBlockTypeIconHrefByBlock(block: Block) {
+        if (!block) {
+            return "";
+        }
+        return getBlockTypeIconHref(block.type, block.subtype);
+    }
+
+    function handleKeyDownDefault(event) {
+        console.log(event.key);
+    }
+</script>
+
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<div class="backlink-panel__area" bind:this={curRootElement}>
+    {#if !rootId}
+        <p style="padding: 10px 20px;">
+            没有获取到当前文档信息，请切换文档重试
+        </p>
+    {/if}
+    {#if displayHintPanelBaseDataCacheUsage}
+        <p style="padding: 10px 20px;">此次面板使用了缓存数据</p>
+    {/if}
+    <div class="backlink-panel__header">
+        <div
+            class="panel__title filter-panel__title block__icons"
+            on:click={() => {
+                panelFilterViewExpand = !panelFilterViewExpand;
+            }}
+            on:keydown={handleKeyDownDefault}
+        >
+            <div class="block__logo" style="font-weight: bold;">
+                <svg class="block__logoicon"
+                    ><use xlink:href="#iconFilter"></use></svg
+                >筛选面板
+            </div>
+            <span class="fn__flex-1"></span>
+            <span class="fn__space"></span>
+            <span
+                class="block__icon b3-tooltips b3-tooltips__sw"
+                aria-label="恢复默认"
+                on:click|stopPropagation={resetFilterQueryParametersToDefault}
+                on:keydown={handleKeyDownDefault}
+                ><svg class=""
+                    ><use xlink:href="#ResetInitialization"></use></svg
+                ></span
+            >
+            <span class="fn__space"></span>
+            <span class="fn__space"></span>
+            <span
+                class="block__icon b3-tooltips b3-tooltips__sw"
+                aria-label="清除缓存并刷新"
+                on:click|stopPropagation={clearCacheAndRefresh}
+                on:keydown={handleKeyDownDefault}
+                ><svg class=""><use xlink:href="#iconRefresh"></use></svg></span
+            >
+            <span class="fn__space"></span>
+            <span class="fn__space"></span>
+            {#if panelFilterViewExpand}
+                <span
+                    class="block__icon b3-tooltips b3-tooltips__sw"
+                    aria-label="折叠"
+                >
+                    <svg><use xlink:href="#iconUp"></use></svg>
+                </span>
+            {/if}
+            {#if !panelFilterViewExpand}
+                <span
+                    class="block__icon b3-tooltips b3-tooltips__sw"
+                    aria-label="展开"
+                >
+                    <svg><use xlink:href="#iconDown"></use></svg>
+                </span>
+            {/if}
+        </div>
+    </div>
+    <!-- 筛选条件区域 -->
+    {#if backlinkFilterPanelRenderData && panelFilterViewExpand}
+        <div class="backlink-panel-filter">
+            <div class="fn__flex">
+                <div class="filter-panel__sub_title">当前文档定义块：</div>
+                <select
+                    class="b3-select fn__flex-center"
+                    bind:value={queryParams.filterPanelCurDocDefBlockSortMethod}
+                    on:change={refreshFilterDisplayData}
+                >
+                    {#each CUR_DOC_DEF_BLOCK_SORT_METHOD_ELEMENT() as element}
+                        <option
+                            value={element.value}
+                            selected={element.value ==
+                                queryParams.filterPanelCurDocDefBlockSortMethod}
+                        >
+                            {element.name}
+                        </option>
+                    {/each}
+                </select>
+                <span class="fn__space"></span>
+                <input
+                    class="b3-text-field fn__size200"
+                    on:input={handleFilterPanelInput}
+                    bind:value={queryParams.filterPanelCurDocDefBlockKeywords}
+                />
+            </div>
+            <div>
+                <div class="defblock-list">
+                    {#each backlinkFilterPanelRenderData.curDocDefBlockArray as defBlock (defBlock.id)}
+                        {#if !defBlock.filterStatus}
+                            <div
+                                id={defBlock.id}
+                                class="tag ariaLabel {defBlock.selectionStatus.toLowerCase()}"
+                                aria-label={getDefBlockAriaLabel(
+                                    defBlock,
+                                    true,
+                                )}
+                                on:click|preventDefault={(event) =>
+                                    handleRelatedDefBlockClick(event, defBlock)}
+                                on:contextmenu|preventDefault={(event) =>
+                                    handleRelatedDefBlockContextmenu(
+                                        event,
+                                        defBlock,
+                                    )}
+                                on:keydown={handleKeyDownDefault}
+                            >
+                                <svg class="b3-list-item__graphic">
+                                    <use
+                                        xlink:href={getBlockTypeIconHrefByBlock(
+                                            defBlock,
+                                        )}
+                                    ></use>
+                                </svg>
+                                <span class="block-content">
+                                    {defBlock.content}
+                                </span>
+                                <span class="count">{defBlock.refCount}</span>
+                            </div>
+                        {/if}
+                    {/each}
+                </div>
+            </div>
+            <div class="fn__flex">
+                <div class="filter-panel__sub_title">关联的定义块：</div>
+                <select
+                    class="b3-select fn__flex-center"
+                    bind:value={queryParams.filterPanelRelatedDefBlockType}
+                    on:change={refreshFilterDisplayData}
+                    style="flex: 0.5;"
+                >
+                    {#each RELATED_DEF_BLOCK_TYPE_ELEMENT() as element}
+                        <option
+                            value={element.value}
+                            selected={element.value ==
+                                queryParams.filterPanelRelatedDefBlockType}
+                        >
+                            {element.name}
+                        </option>
+                    {/each}
+                </select>
+                <span class="fn__space"></span>
+                <select
+                    class="b3-select fn__flex-center"
+                    bind:value={queryParams.filterPanelRelatedDefBlockSortMethod}
+                    on:change={refreshFilterDisplayData}
+                >
+                    {#each RELATED_DEF_BLOCK_SORT_METHOD_ELEMENT() as element}
+                        <option
+                            value={element.value}
+                            selected={element.value ==
+                                queryParams.filterPanelRelatedDefBlockSortMethod}
+                        >
+                            {element.name}
+                        </option>
+                    {/each}
+                </select>
+                <span class="fn__space"></span>
+                <input
+                    class="b3-text-field fn__size200"
+                    on:input={handleFilterPanelInput}
+                    bind:value={queryParams.filterPanelRelatedDefBlockKeywords}
+                />
+            </div>
+            <div>
+                <div class="defblock-list">
+                    {#each backlinkFilterPanelRenderData.relatedDefBlockArray as defBlock (defBlock.id)}
+                        {#if !defBlock.filterStatus}
+                            <div
+                                class="tag ariaLabel {defBlock.selectionStatus.toLowerCase()}"
+                                aria-label={getDefBlockAriaLabel(
+                                    defBlock,
+                                    true,
+                                )}
+                                on:click={(event) =>
+                                    handleRelatedDefBlockClick(event, defBlock)}
+                                on:contextmenu|preventDefault={(event) =>
+                                    handleRelatedDefBlockContextmenu(
+                                        event,
+                                        defBlock,
+                                    )}
+                                on:keydown={handleKeyDownDefault}
+                            >
+                                <svg class="b3-list-item__graphic">
+                                    <use
+                                        xlink:href={getBlockTypeIconHrefByBlock(
+                                            defBlock,
+                                        )}
+                                    ></use>
+                                </svg>
+                                <span class="block-content">
+                                    {defBlock.content}
+                                </span>
+                                <span class="count">{defBlock.refCount}</span>
+                            </div>
+                        {/if}
+                    {/each}
+                </div>
+            </div>
+            <div class="fn__flex">
+                <div class="filter-panel__sub_title">反链所在文档：</div>
+                <select
+                    class="b3-select fn__flex-center"
+                    bind:value={queryParams.filterPanelBacklinkDocumentSortMethod}
+                    on:change={refreshFilterDisplayData}
+                >
+                    {#each RELATED_DOCMUMENT_SORT_METHOD_ELEMENT() as element}
+                        <option
+                            value={element.value}
+                            selected={element.value ==
+                                queryParams.filterPanelBacklinkDocumentSortMethod}
+                        >
+                            {element.name}
+                        </option>
+                    {/each}
+                </select>
+                <span class="fn__space"></span>
+                <input
+                    class="b3-text-field fn__size200"
+                    on:input={handleFilterPanelInput}
+                    bind:value={queryParams.filterPanelBacklinkDocumentKeywords}
+                />
+            </div>
+
+            <div>
+                <div class="defblock-list">
+                    {#each backlinkFilterPanelRenderData.backlinkDocumentArray as defBlock (defBlock.id)}
+                        {#if !defBlock.filterStatus}
+                            <!-- svelte-ignore a11y-no-static-element-interactions -->
+                            <div
+                                class="tag ariaLabel {defBlock.selectionStatus.toLowerCase()}"
+                                aria-label={getDefBlockAriaLabel(
+                                    defBlock,
+                                    true,
+                                )}
+                                on:click={(event) =>
+                                    handleRelatedDocBlockClick(event, defBlock)}
+                                on:contextmenu|preventDefault={(event) =>
+                                    handleRelatedDocBlockContextmenu(
+                                        event,
+                                        defBlock,
+                                    )}
+                                on:keydown={handleKeyDownDefault}
+                            >
+                                <svg class="b3-list-item__graphic">
+                                    <use
+                                        xlink:href={getBlockTypeIconHrefByBlock(
+                                            defBlock,
+                                        )}
+                                    ></use>
+                                </svg>
+                                <span class="block-content">
+                                    {defBlock.content}
+                                </span>
+                                <span class="count">{defBlock.refCount}</span>
+                            </div>
+                        {/if}
+                    {/each}
+                </div>
+            </div>
+            <hr />
+            <div>
+                <p>
+                    <button
+                        class="b3-button save-button"
+                        on:click={() => {
+                            showSaveCriteriaInputBox = true;
+                        }}>保存当前条件</button
+                    >
+                </p>
+                {#if showSaveCriteriaInputBox}
+                    <div class="input-box">
+                        <input
+                            type="text"
+                            bind:value={saveCriteriaInputText}
+                            class="b3-text-field input-field"
+                            placeholder="请输入名称"
+                        />
+                        <div class="buttons">
+                            <button
+                                class="cancel-button b3-button b3-button--outline"
+                                on:click={handleCriteriaCancel}>取消</button
+                            >
+                            <button
+                                class="confirm-button b3-button"
+                                on:click={handleCriteriaConfirm}>确定</button
+                            >
+                        </div>
+                    </div>
+                {/if}
+                {#if savedQueryParamMap}
+                    {#each savedQueryParamMap.keys() as name}
+                        <div class="tag optional" style="padding: 4px;">
+                            <span
+                                class="block-content"
+                                style="min-width:30px;"
+                                on:click={() => {
+                                    hadnleSavedPanelCriteriaClick(name);
+                                }}
+                                on:keydown={handleKeyDownDefault}
+                            >
+                                {name}
+                            </span>
+                            <span
+                                class="block__icon"
+                                style="padding: 2px 6px"
+                                on:click={() => {
+                                    hadnleSavedPanelCriteriaDeleteClick(name);
+                                }}
+                                on:keydown={handleKeyDownDefault}
+                            >
+                                <svg style="width: 8px;"
+                                    ><use xlink:href="#iconClose"></use></svg
+                                >
+                            </span>
+                        </div>
+                    {/each}
+                {/if}
+            </div>
+        </div>
+    {/if}
+    <hr />
+    <!-- 反链块展示区 -->
+    <div class="backlink-panel__header">
+        <div
+            class="panel__title backlink-panel__title block__icons"
+            on:click={() => {
+                panelBacklinkViewExpand = !panelBacklinkViewExpand;
+            }}
+            on:keydown={handleKeyDownDefault}
+        >
+            <div class="block__logo" style="font-weight: bold;">
+                <svg class="block__logoicon"
+                    ><use xlink:href="#iconLink"></use></svg
+                >反向链接
+            </div>
+            <span class="fn__flex-1"></span>
+            <span class="fn__space"></span>
+            <span
+                class="block__icon b3-tooltips b3-tooltips__sw"
+                aria-label="恢复默认"
+                on:click|stopPropagation={resetBacklinkQueryParametersToDefault}
+                on:keydown={handleKeyDownDefault}
+                ><svg class=""
+                    ><use xlink:href="#ResetInitialization"></use></svg
+                ></span
+            >
+            <span class="fn__space"></span>
+            <span class="fn__space"></span>
+
+            {#if panelBacklinkViewExpand}
+                <span
+                    class="block__icon b3-tooltips b3-tooltips__sw"
+                    aria-label="折叠"
+                >
+                    <svg><use xlink:href="#iconUp"></use></svg>
+                </span>
+            {/if}
+            {#if !panelBacklinkViewExpand}
+                <span
+                    class="block__icon b3-tooltips b3-tooltips__sw"
+                    aria-label="展开"
+                >
+                    <svg><use xlink:href="#iconDown"></use></svg>
+                </span>
+            {/if}
+        </div>
+        {#if panelBacklinkViewExpand && queryParams}
+            <div class="fn__flex" style="padding: 5px 15px; maragin:0px;">
+                <select
+                    class="b3-select fn__flex-center ariaLabel"
+                    bind:value={queryParams.backlinkCurDocDefBlockType}
+                    on:change={updateRenderData}
+                    style="flex: 0.5;"
+                    aria-label="当前文档定义块类型"
+                >
+                    {#each RELATED_DEF_BLOCK_TYPE_ELEMENT() as element}
+                        <option
+                            value={element.value}
+                            selected={element.value ==
+                                queryParams.backlinkCurDocDefBlockType}
+                        >
+                            {element.name}
+                        </option>
+                    {/each}
+                </select>
+                <span class="fn__space"></span>
+                <select
+                    class="b3-select fn__flex-center"
+                    bind:value={queryParams.backlinkBlockSortMethod}
+                    on:change={updateRenderData}
+                >
+                    {#each BACKLINK_BLOCK_SORT_METHOD_ELEMENT() as element}
+                        <option
+                            value={element.value}
+                            selected={element.value ==
+                                queryParams.backlinkBlockSortMethod}
+                        >
+                            {element.name}
+                        </option>
+                    {/each}
+                </select>
+                <span class="fn__space"></span>
+                <input
+                    class="b3-text-field fn__size200"
+                    on:input={handleBacklinkKeywordInput}
+                    bind:value={queryParams.backlinkKeywordStr}
+                />
+
+                <span
+                    class="block__icon b3-tooltips b3-tooltips__sw"
+                    aria-label="展开所有文档"
+                    on:click={() => {
+                        expandAllBacklinkDocument();
+                    }}
+                    on:keydown={handleKeyDownDefault}
+                >
+                    <svg><use xlink:href="#iconExpand"></use></svg>
+                </span>
+                <span class="fn__space"></span>
+                <span
+                    class="block__icon b3-tooltips b3-tooltips__sw"
+                    aria-label="折叠所有文档"
+                    on:click={() => {
+                        collapseAllBacklinkDocument();
+                    }}
+                    on:keydown={handleKeyDownDefault}
+                >
+                    <svg><use xlink:href="#iconContract"></use></svg>
+                </span>
+            </div>
+        {/if}
+        {#if panelBacklinkViewExpand && backlinkFilterPanelRenderData && isArrayNotEmpty(backlinkFilterPanelRenderData.backlinkDataArray)}
+            <div
+                class="block__icons"
+                style="overflow:auto;style=color:var(--b3-theme-on-background);"
+            >
+                <span
+                    class="fn__flex-shrink ft__selectnone {backlinkFilterPanelRenderData.totalPage ==
+                        null || backlinkFilterPanelRenderData.totalPage == 0
+                        ? 'fn__none'
+                        : ''}"
+                >
+                    <span class="fn__space"></span>
+
+                    <span class="">
+                        {EnvConfig.ins.i18n.findInBacklink.replace(
+                            "${x}",
+                            backlinkFilterPanelRenderData.backlinkBlockNodeArray
+                                .length,
+                        )}
+                    </span>
+                </span>
+                <span class="fn__space"></span>
+                <span class="fn__flex-1" style="min-height: 100%"></span>
+
+                <span
+                    class="fn__flex-shrink ft__selectnone {backlinkFilterPanelRenderData.totalPage ==
+                        null || backlinkFilterPanelRenderData.totalPage == 0
+                        ? 'fn__none'
+                        : ''}"
+                >
+                    {backlinkFilterPanelRenderData.pageNum}/{backlinkFilterPanelRenderData.totalPage}
+                </span>
+
+                <span class="fn__space"></span>
+                <span
+                    data-position="9bottom"
+                    class="block__icon block__icon--show ariaLabel {backlinkFilterPanelRenderData.pageNum <=
+                    1
+                        ? 'disabled'
+                        : ''}"
+                    aria-label={EnvConfig.ins.i18n.previousLabel}
+                    on:click={() => {
+                        pageTurning(backlinkFilterPanelRenderData.pageNum - 1);
+                    }}
+                    on:keydown={handleKeyDownDefault}
+                    ><svg><use xlink:href="#iconLeft"></use></svg></span
+                >
+                <span class="fn__space"></span>
+                <span
+                    data-position="9bottom"
+                    class="block__icon block__icon--show ariaLabel {backlinkFilterPanelRenderData.pageNum >=
+                    backlinkFilterPanelRenderData.totalPage
+                        ? 'disabled'
+                        : ''}"
+                    aria-label={EnvConfig.ins.i18n.nextLabel}
+                    on:click={() => {
+                        pageTurning(backlinkFilterPanelRenderData.pageNum + 1);
+                    }}
+                    on:keydown={handleKeyDownDefault}
+                    ><svg><use xlink:href="#iconRight"></use></svg></span
+                >
+                <span class="fn__space"></span>
+            </div>
+        {/if}
+    </div>
+    <div
+        class="backlinkList fn__flex-1 {panelBacklinkViewExpand
+            ? ''
+            : 'fn__none'}"
+    >
+        <div class="sy__backlink">
+            {#if displayHintBacklinkBlockCacheUsage}
+                <div>此次查询使用了缓存数据</div>
+            {/if}
+            <div class="block__icons" style="display: none;"></div>
+            <div class="fn__flex-1">
+                <ul
+                    bind:this={backlinkULElement}
+                    class="b3-list b3-list--background {hideBacklinkProtyleBreadcrumb
+                        ? 'hide-breadcrumb'
+                        : ''}"
+                ></ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 12px 3px 3px;
+        margin: 4px 4px 4px 2px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+        position: relative; /* 为了绝对定位的小数字 */
+        max-width: 120px;
+        max-height: 30px;
+        overflow: hidden; /* 隐藏超出部分的文本 */
+        text-overflow: ellipsis; /* 超出部分显示省略号 */
+        vertical-align: top; /* 垂直对齐 */
+        font-size: 12px;
+        white-space: nowrap; /* 禁止换行 */
+    }
+
+    .selected {
+        background-color: rgba(26, 188, 156, 1);
+        color: white;
+        border: 1px solid rgba(26, 188, 156, 0.4);
+    }
+    .tag.selected:hover {
+        background-color: rgba(26, 188, 156, 0.9);
+    }
+    .excluded {
+        background-color: black;
+        color: white;
+        border: 1px solid rgba(0, 0, 0, 0.6);
+    }
+    .tag.excluded:hover {
+        background-color: rgba(0, 0, 0, 0.7);
+    }
+    .optional {
+        background-color: var(--b3-theme-background);
+        color: var(--b3-theme-on-background);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    .tag.optional:hover {
+        background-color: rgba(0, 0, 0, 0.08);
+    }
+    .tag:active {
+        transform: scale(0.95);
+    }
+    .b3-list-item__graphic {
+        margin: 1px 0px 0px;
+        height: 11px;
+        padding: 0px 0px;
+    }
+    .block-content {
+        text-overflow: ellipsis; /* 显示省略号 */
+        overflow: hidden; /* 隐藏溢出部分 */
+        white-space: nowrap; /* 禁止换行 */
+        flex-shrink: 1; /* 允许文本缩小以适应容器 */
+    }
+    .count {
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        /* background: red; */
+        /* color: white; */
+        border-radius: 20%;
+        padding: 2px 5px;
+        font-size: 10px;
+    }
+
+    .panel__title {
+        /* color: var(--b3-theme-on-surface); */
+        cursor: pointer;
+        border: 0;
+        opacity: 1;
+        background: rgba(0, 0, 0, 0);
+        flex-shrink: 0;
+        padding: 2px 10px;
+        display: flex;
+        align-items: center;
+        border-radius: var(--b3-border-radius);
+        transition:
+            var(--b3-transition),
+            opacity 0.3s cubic-bezier(0, 0, 0.2, 1) 0ms;
+        line-height: 14px;
+        min-height: 30px;
+        height: 35px;
+    }
+    .filter-panel__title:hover {
+        color: var(--b3-theme-on-background);
+        background-color: var(--b3-list-icon-hover);
+    }
+
+    .backlink-panel-filter {
+        margin: 0px 5px;
+        padding: 6px 3px 6px 13px;
+        transition:
+            transform 0.3s ease,
+            box-shadow 0.3s ease;
+    }
+    /* 悬停效果 */
+    .backlink-panel-filter:hover {
+        /* border: 1px solid #ccc; */
+        /* transform: translateY(-2px); 悬浮效果 */
+        box-shadow:
+            0 2px 4px rgba(0, 0, 0, 0.2),
+            /* 上边的阴影 */ 0 3px 10px rgba(0, 0, 0, 0.19); /* 四周的阴影 */
+    }
+    .defblock-list {
+        min-height: 33px;
+        max-height: 96px; /* 设置最大高度 */
+        overflow-y: auto; /* 当内容超过最大高度时显示垂直滚动条 */
+        padding: 6px 0px 6px 10px; /* 内边距 */
+        /* background-color: var(--b3-list-hover); 背景颜色 */
+        border-radius: 6px;
+    }
+
+    .backlink-panel__title:hover {
+        color: var(--b3-theme-on-background);
+        background-color: var(--b3-list-icon-hover);
+    }
+    select {
+        /* max-width: 120px; */
+        padding-right: 23px;
+        width: 100%;
+        flex: 1;
+    }
+    input {
+        /* max-width: 100px; */
+        width: 100%;
+        flex: 1;
+    }
+    h3,
+    .filter-panel__sub_title {
+        font-size: 1.06em;
+        font-weight: bold;
+        margin: 6px 0px;
+    }
+    .fn__flex {
+        /* margin-bottom: 5px; */
+    }
+    .backlinkList {
+        /* margin-bottom: 200px; */
+    }
+    .block__icon {
+        opacity: 1;
+    }
+
+    .backlink-panel__header {
+        position: sticky;
+        top: 0;
+        /* background-color: #333;
+        color: white; */
+        text-align: center;
+        padding: 0px 0;
+        z-index: 2;
+        background-color: var(--b3-theme-surface);
+        margin-bottom: 10px;
+    }
+
+    .backlink-panel__header .b3-text-field:not(.b3-text-field:focus) {
+        box-shadow: inset 0 0 0 1px var(--b3-layout-resize);
+    }
+
+    .save-button {
+        padding: 3px 6px;
+        font-size: 11px;
+        cursor: pointer;
+    }
+
+    .input-box {
+        width: 180px;
+        position: relative;
+        top: 6px;
+        /* left: 20px; */
+
+        background: #fff;
+        border: 1px solid #ccc;
+        padding: 0px 0px 5px;
+        border-radius: 5px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .input-box::before {
+        content: "";
+        position: relative;
+        bottom: 10px;
+        left: -60px;
+        border-left: 10px solid transparent;
+        border-right: 10px solid transparent;
+        border-bottom: 10px solid white;
+    }
+
+    .input-field {
+        margin-bottom: 6px;
+        padding: 1px;
+        width: 80%;
+    }
+
+    .buttons {
+        display: flex;
+        gap: 10px;
+    }
+
+    .confirm-button,
+    .cancel-button {
+        padding: 3px 6px;
+        font-size: 11px;
+        cursor: pointer;
+    }
+</style>

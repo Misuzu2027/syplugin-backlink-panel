@@ -36,14 +36,11 @@
                 <svg class="b3-list-item__graphic">
                     <use xlink:href={"#" + tab.iconKey}></use>
                 </svg>
-                <!-- 这里是svg图标 -->
                 <span class="b3-list-item__text">{tab.name}</span>
             </li>
         {/each}
     </ul>
     <div class="config__tab-wrap">
-        <!-- TODO: 这里换成v-for根据列表生成，不再手动填充了 -->
-        <!-- 在Page上通过当前显示的标签页名称key一致匹配确定是否显示这个标签页 -->
         {#each tabArray as tab}
             {#if activeTab === tab.key}
                 <div class="config__tab-container">
@@ -56,10 +53,9 @@
                             {:else if itemProperty.type == "number" || itemProperty.type == "text"}
                                 <SettingInput {itemProperty} />
                             {:else}
-                                出错啦，不能载入设置项，请检查设置代码实现。
-                                Key: {itemProperty.key}
+                                不能载入设置项，请检查设置代码实现。 Key: {itemProperty.key}
                                 <br />
-                                Oops, can't load settings, check code please. Key:
+                                can't load settings, check code please. Key:
                                 {itemProperty.key}
                             {/if}
                         </SettingItem>

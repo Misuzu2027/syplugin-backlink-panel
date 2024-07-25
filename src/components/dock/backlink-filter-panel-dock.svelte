@@ -1,7 +1,7 @@
 <script lang="ts">
     import { EnvConfig } from "@/config/EnvConfig";
     import { onMount } from "svelte";
-    import BacklinkPanelPage from "@/components/panel/backlink-panel-page.svelte";
+    import BacklinkFilterPanelPageSvelte from "@/components/panel/backlink-filter-panel-page.svelte";
 
     let isMobile = false;
     let dockActive: boolean;
@@ -27,7 +27,7 @@
 
     async function init() {
         isMobile = EnvConfig.ins.isMobile;
-        rootId = EnvConfig.ins.lastViewedDocId;
+        lastRootId = EnvConfig.ins.lastViewedDocId;
         EnvConfig.ins.plugin.eventBus.on("switch-protyle", (e: any) => {
             switchProtyleCallback(e);
         });
@@ -44,17 +44,17 @@
 </script>
 
 {#if isMobile}
-    <div class="toolbar toolbar--border toolbar--dark">
+    <!-- <div class="toolbar toolbar--border toolbar--dark">
         <svg class="toolbar__icon"
             ><use xlink:href="#BacklinkPanelFilter"></use></svg
         >
         <div class="toolbar__text">{EnvConfig.ins.i18n.flatDocumentTree}</div>
-    </div>
-    <div class="fn__flex-1">
-        <BacklinkPanelPage {rootId} {focusBlockId} />
+    </div> -->
+    <div class="">
+        <BacklinkFilterPanelPageSvelte {rootId} {focusBlockId} />
     </div>
 {:else}
-    <div class="fn__flex-1 fn__flex-column">
-        <BacklinkPanelPage {rootId} {focusBlockId} />
+    <div class="fn__flex-column">
+        <BacklinkFilterPanelPageSvelte {rootId} {focusBlockId} />
     </div>
 {/if}

@@ -1,6 +1,6 @@
 {
   "name": "syplugin-backlink-panel",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "type": "module",
   "description": "SiYuan Note Plugin: Filterable Backlink Panel",
   "repository": "https://github.com/Misuzu2027/syplugin-backlink-panel",

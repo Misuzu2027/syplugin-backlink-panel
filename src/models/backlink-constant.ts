@@ -34,6 +34,14 @@ export function BACKLINK_BLOCK_SORT_METHOD_ELEMENT(): { name: string, value: Blo
             name: EnvConfig.ins.i18n.fileNameDESC,
             value: "alphabeticDesc",
         },
+        {
+            name: "文档名称升序",
+            value: "documentAlphabeticAsc",
+        },
+        {
+            name: "文档名称降序",
+            value: "documentAlphabeticDesc",
+        },
     ];
 }
 
@@ -56,6 +64,25 @@ export function CUR_DOC_DEF_BLOCK_SORT_METHOD_ELEMENT(): { name: string, value: 
         },
     ];
 }
+
+export function RELATED_DEF_BLOCK_TYPE_ELEMENT(): { name: string, value: string }[] {
+
+    return [
+        {
+            name: "所有",
+            value: "all",
+        },
+        {
+            name: "动态锚文本",
+            value: "dynamicAnchorText",
+        },
+        {
+            name: "静态锚文本",
+            value: "staticAnchorText",
+        },
+    ];
+}
+
 
 export function RELATED_DEF_BLOCK_SORT_METHOD_ELEMENT(): { name: string, value: BlockSortMethod }[] {
 

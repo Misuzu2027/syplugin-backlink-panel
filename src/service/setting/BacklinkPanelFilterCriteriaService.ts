@@ -1,113 +1,162 @@
 import { CacheManager } from "@/config/CacheManager";
-import { IBacklinkPanelRednerFilterQueryParams, BacklinkPanelFilterCriteria } from "@/models/backlink-model";
+import { IPanelRednerFilterQueryParams, BacklinkPanelFilterCriteria } from "@/models/backlink-model";
 
 import { getBlockAttrs, setBlockAttrs } from "@/utils/api";
 import Instance from "@/utils/Instance";
 import { SettingService } from "./SettingService";
-import { setReplacer } from "@/utils/json-util";
+import { setReplacer, setReviver } from "@/utils/json-util";
 import { mergeObjects } from "@/utils/object-util";
 
-const BACKLINK_PANEL_DEFAULT_CONDISTIONS_ATRIBUTE_KEY = "custom-backlink-panel-default-condistions";
-const BACKLINK_PANEL_SAVED_CONDISTIONS_ATTRIBUTE_KEY = "custom-backlink-panel-saved-condistions";
-export class BacklinkPanelFilterCriteriaService {
+const BACKLINK_FILTER_PANEL_DEFAULT_CRITERIA_ATRIBUTE_KEY = "custom-backlink-filter-panel-default-criteria";
+const BACKLINK_FILTER_PANEL_SAVED_CRITERIA_ATTRIBUTE_KEY = "custom-backlink-filter-panel-saved-criteria";
+export class BacklinkFilterPanelCriteriaService {
 
-    public static get ins(): BacklinkPanelFilterCriteriaService {
-        return Instance.get(BacklinkPanelFilterCriteriaService);
+    public static get ins(): BacklinkFilterPanelCriteriaService {
+        return Instance.get(BacklinkFilterPanelCriteriaService);
     }
 
 
-    public async getBacklinkPanelFilterCriteria(rootId: string): Promise<BacklinkPanelFilterCriteria> {
-        let docuemntDefaultConfig = CacheManager.ins.getBacklinkPanelDefaultFilterCriteria(rootId);
+    public async getPanelCriteria(rootId: string): Promise<BacklinkPanelFilterCriteria> {
+        let documentPanelCriteria = CacheManager.ins.getBacklinkFilterPanelDefaultCriteria(rootId);
         let queryParams;
-        if (docuemntDefaultConfig) {
-            let defaultQueryParams = getDefaultQueryParams();
-            queryParams = mergeObjects(docuemntDefaultConfig.queryParams, defaultQueryParams);
+        if (documentPanelCriteria) {
+            let defaultQueryParams = this.getDefaultQueryParams();
+            queryParams = mergeObjects(documentPanelCriteria.queryParams, defaultQueryParams);
         } else {
-            queryParams = getDefaultQueryParams();
-            docuemntDefaultConfig = new BacklinkPanelFilterCriteria();
+            queryParams = this.getDefaultQueryParams();
+            documentPanelCriteria = new BacklinkPanelFilterCriteria();
 
-            CacheManager.ins.setBacklinkPanelDefaultFilterCriteria(rootId, docuemntDefaultConfig);
+            CacheManager.ins.setBacklinkFilterPanelDefaultCriteria(rootId, documentPanelCriteria);
         }
 
-        docuemntDefaultConfig.queryParams = queryParams;
+        documentPanelCriteria.queryParams = queryParams;
 
         // let attrsMap = await getBlockAttrs(rootId);
-        // if (attrsMap && Object.keys(attrsMap).includes(BACKLINK_PANEL_DEFAULT_CONDISTIONS_ATRIBUTE_KEY)) {
-        //     let json = attrsMap[BACKLINK_PANEL_DEFAULT_CONDISTIONS_ATRIBUTE_KEY];
-        //     let parseObject = JSON.parse(json, setReviver) as BacklinkPanelConditions;
-        //     if (parseObject instanceof BacklinkPanelConditions) {
-        //         CacheManager.ins.setBacklinkPanelDefaultConditions(rootId, parseObject);
+        // if (attrsMap && Object.keys(attrsMap).includes(BACKLINK_FILTER_PANEL_DEFAULT_CRITERIA_ATRIBUTE_KEY)) {
+        //     let json = attrsMap[BACKLINK_FILTER_PANEL_DEFAULT_CRITERIA_ATRIBUTE_KEY];
+        //     let parseObject = JSON.parse(json, setReviver) as BacklinkPanelCriteria;
+        //     if (parseObject instanceof BacklinkPanelCriteria) {
+        //         CacheManager.ins.setBacklinkPanelDefaultCriteria(rootId, parseObject);
         //         return parseObject;
         //     }
         // }
-        return docuemntDefaultConfig;
+        // console.log("getBacklinkPanelFilterCriteria queryParams", queryParams)
+        return documentPanelCriteria;
     }
 
 
-    public async updateBacklinkPanelFilterCriteria(rootId: string, conditions: BacklinkPanelFilterCriteria) {
+    public async updatePanelCriteria(rootId: string, criteria: BacklinkPanelFilterCriteria) {
         if (!rootId) {
             return;
         }
-        let lastConditions = await this.getBacklinkPanelFilterCriteria(rootId);
-        let lastConditionsJson = "";
-        if (lastConditions) {
-            lastConditionsJson = JSON.stringify(lastConditions, setReplacer);
+        let lastCriteria = await this.getPanelCriteria(rootId);
+        let lastCriteriaJson = "";
+        if (lastCriteria) {
+            lastCriteriaJson = JSON.stringify(lastCriteria, setReplacer);
         }
-        let conditionsJson = JSON.stringify(conditions, setReplacer);
-        if (conditionsJson == lastConditionsJson) {
+        let riteriaJson = JSON.stringify(criteria, setReplacer);
+        if (riteriaJson == lastCriteriaJson) {
             return;
         }
 
-        CacheManager.ins.setBacklinkPanelDefaultFilterCriteria(rootId, conditions);
+        CacheManager.ins.setBacklinkFilterPanelDefaultCriteria(rootId, criteria);
 
         // let attrs = {};
-        // attrs[BACKLINK_PANEL_DEFAULT_CONDISTIONS_ATRIBUTE_KEY] = conditionsJson;
+        // attrs[BACKLINK_FILTER_PANEL_DEFAULT_CRITERIA_ATRIBUTE_KEY] = criteriaJson;
         // setBlockAttrs(rootId, attrs);
     }
 
 
+    public async getPanelSavedCriteriaMap(rootId: string): Promise<Map<string, IPanelRednerFilterQueryParams>> {
+        let savedCriteriaMap = CacheManager.ins.getBacklinkPanelSavedCriteria(rootId);
+        if (savedCriteriaMap && savedCriteriaMap.size > 0) {
+            return savedCriteriaMap
+        }
 
+        let attrsMap = await getBlockAttrs(rootId);
+        console.log("getPanelSavedCriteriaMap attrsMap : ", attrsMap)
+        if (attrsMap && Object.keys(attrsMap).includes(BACKLINK_FILTER_PANEL_SAVED_CRITERIA_ATTRIBUTE_KEY)) {
+            let json = attrsMap[BACKLINK_FILTER_PANEL_SAVED_CRITERIA_ATTRIBUTE_KEY];
+            let parseObject = JSON.parse(json, setReviver);
+            if (parseObject) {
+                const resultMap = new Map<string, IPanelRednerFilterQueryParams>(Object.entries(parseObject));
+                CacheManager.ins.setBacklinkPanelSavedCriteria(rootId, resultMap);
+                return resultMap;
+            }
+        }
 
-
-
-}
-
-
-
-
-function getDefaultQueryParams(): IBacklinkPanelRednerFilterQueryParams {
-    let settingConfig = SettingService.ins.SettingConfig;
-    let pageSize = 8;
-    let backlinkBlockSortMethod = "modifiedDesc";
-    let filterPanelCurDocDefBlockSortMethod = "typeAndContent";
-    let filterPanelRelatedDefBlockSortMethod = "modifiedDesc";
-    let filterPanelRelatedDocumentSortMethod = "createdDesc";
-
-    if (!settingConfig) {
-        pageSize = settingConfig.pageSize ? settingConfig.pageSize : pageSize;
-        backlinkBlockSortMethod = settingConfig.backlinkBlockSortMethod ? settingConfig.backlinkBlockSortMethod : backlinkBlockSortMethod;
-        filterPanelCurDocDefBlockSortMethod = settingConfig.filterPanelCurDocDefBlockSortMethod ? settingConfig.filterPanelCurDocDefBlockSortMethod : filterPanelCurDocDefBlockSortMethod;
-        filterPanelRelatedDefBlockSortMethod = settingConfig.filterPanelRelatedDefBlockSortMethod ? settingConfig.filterPanelRelatedDefBlockSortMethod : filterPanelRelatedDefBlockSortMethod;
-        filterPanelRelatedDocumentSortMethod = settingConfig.filterPanelRelatedDocumentSortMethod ? settingConfig.filterPanelRelatedDocumentSortMethod : filterPanelRelatedDocumentSortMethod;
+        return new Map();
     }
-    let queryParams = {
-        keywordStr: "",
-        pageNum: 1,
-        pageSize: pageSize,
-        backlinkBlockSortMethod: backlinkBlockSortMethod,
-        includeRelatedDefBlockIds: new Set<string>(),
-        excludeRelatedDefBlockIds: new Set<string>(),
-        includeDocumentIds: new Set<string>(),
-        excludeDocumentIds: new Set<string>(),
-        filterPanelCurDocDefBlockSortMethod: filterPanelCurDocDefBlockSortMethod,
-        filterPanelCurDocDefBlockKeywords: "",
-        filterPanelRelatedDefBlockSortMethod: filterPanelRelatedDefBlockSortMethod,
-        filterPanelRelatedDefBlockKeywords: "",
-        filterPanelRelatedDocumentSortMethod: filterPanelRelatedDocumentSortMethod,
-        filterPanelRelatedDocumentKeywords: "",
-    } as IBacklinkPanelRednerFilterQueryParams;
 
-    return queryParams;
+
+    public async updatePanelSavedCriteriaMap(rootId: string, criteriaMap: Map<string, IPanelRednerFilterQueryParams>) {
+        if (!rootId) {
+            return;
+        }
+        // let lastCriteriaMap = await this.getPanelSavedCriteriaMap(rootId);
+        // let lastCriteriaJson = "";
+        // if (lastCriteriaMap) {
+        //     const obj = Object.fromEntries(lastCriteriaMap);
+        //     lastCriteriaJson = JSON.stringify(obj, setReplacer);
+        // }
+        const mapObject = Object.fromEntries(criteriaMap);
+        let criteriaJson = JSON.stringify(mapObject, setReplacer);
+        // if (criteriaJson == lastCriteriaJson) {
+        //     return;
+        // }
+
+        CacheManager.ins.setBacklinkPanelSavedCriteria(rootId, criteriaMap);
+
+        let attrs = {};
+        attrs[BACKLINK_FILTER_PANEL_SAVED_CRITERIA_ATTRIBUTE_KEY] = criteriaJson;
+        setBlockAttrs(rootId, attrs);
+    }
+
+
+
+    getDefaultQueryParams(): IPanelRednerFilterQueryParams {
+        let settingConfig = SettingService.ins.SettingConfig;
+        let pageSize = 8;
+        let backlinkBlockSortMethod = "modifiedDesc";
+        let filterPanelCurDocDefBlockSortMethod = "typeAndContent";
+        let filterPanelRelatedDefBlockSortMethod = "modifiedDesc";
+        let filterPanelbacklinkDocumentSortMethod = "createdDesc";
+
+        if (!settingConfig) {
+            pageSize = settingConfig.pageSize ? settingConfig.pageSize : pageSize;
+            backlinkBlockSortMethod = settingConfig.backlinkBlockSortMethod ? settingConfig.backlinkBlockSortMethod : backlinkBlockSortMethod;
+            filterPanelCurDocDefBlockSortMethod = settingConfig.filterPanelCurDocDefBlockSortMethod ? settingConfig.filterPanelCurDocDefBlockSortMethod : filterPanelCurDocDefBlockSortMethod;
+            filterPanelRelatedDefBlockSortMethod = settingConfig.filterPanelRelatedDefBlockSortMethod ? settingConfig.filterPanelRelatedDefBlockSortMethod : filterPanelRelatedDefBlockSortMethod;
+            filterPanelbacklinkDocumentSortMethod = settingConfig.filterPanelBacklinkDocumentSortMethod ? settingConfig.filterPanelBacklinkDocumentSortMethod : filterPanelbacklinkDocumentSortMethod;
+        }
+        let queryParams = {
+            pageNum: 1,
+            pageSize: pageSize,
+            backlinkCurDocDefBlockType: "all",
+            backlinkBlockSortMethod: backlinkBlockSortMethod,
+            backlinkKeywordStr: "",
+            includeRelatedDefBlockIds: new Set<string>(),
+            excludeRelatedDefBlockIds: new Set<string>(),
+            includeDocumentIds: new Set<string>(),
+            excludeDocumentIds: new Set<string>(),
+            filterPanelCurDocDefBlockSortMethod: filterPanelCurDocDefBlockSortMethod,
+            filterPanelCurDocDefBlockKeywords: "",
+            filterPanelRelatedDefBlockType: "all",
+            filterPanelRelatedDefBlockSortMethod: filterPanelRelatedDefBlockSortMethod,
+            filterPanelRelatedDefBlockKeywords: "",
+            filterPanelBacklinkDocumentSortMethod: filterPanelbacklinkDocumentSortMethod,
+            filterPanelBacklinkDocumentKeywords: "",
+        } as IPanelRednerFilterQueryParams;
+
+        return queryParams;
+    }
+
+
+
+
+
+
+
 }
 
 
