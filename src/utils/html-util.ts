@@ -236,24 +236,23 @@ export function getElementsAtDepth(rootElement: Element, selector: string, depth
 
 
 export function syHasChildListNode(root: Element): boolean {
+    if (!root) {
+        return false;
+    }
     // 获取 root 的所有子节点
     const children = Array.from(root.children) as HTMLElement[];
 
-    // 确保有至少三个子节点
-    if (children.length < 3) {
+    // 确保有至少4个子节点
+    if (children.length < 4) {
         return false;
     }
+    // let listNodeElement = root.querySelector(`:scope > [data-type="NodeList"].list`);
 
-    // 获取第三个子节点
-    const thirdChild = children[2];
+    // if (
+    //     listNodeElement
+    // ) {
+    //     return true;
+    // }
 
-    // 检查第三个子节点是否符合条件
-    if (
-        thirdChild.matches('[data-type="NodeList"].list') &&
-        thirdChild.hasAttribute('data-node-id')
-    ) {
-        return true;
-    }
-
-    return false;
+    return true;
 }

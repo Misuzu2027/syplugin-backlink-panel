@@ -1,4 +1,6 @@
 import { IBacklinkBlockQueryParams, IBacklinkFilterPanelDataQueryParams } from "@/models/backlink-model";
+import { isArrayNotEmpty } from "@/utils/array-util";
+import { isValidStr } from "@/utils/string-util";
 
 
 
@@ -65,21 +67,26 @@ export function generateGetDefBlockArraySql(
 export function generateGetParentDefBlockArraySql(
     queryParams: IBacklinkBlockQueryParams,
 ): string {
-
     let defBlockIds = queryParams.defBlockIds;
-    let idInSql = generateAndInConditions("def_block_id", defBlockIds);
+    let backlinkBlockIds = queryParams.backlinkBlockIds;
+
+    let backlinkIdInSql = "";
+    if (isArrayNotEmpty(backlinkBlockIds)) {
+        backlinkIdInSql = generateAndInConditions("id", backlinkBlockIds);
+    } else if (isArrayNotEmpty(defBlockIds)) {
+        let defBlockIdInSql = generateAndInConditions("def_block_id", defBlockIds);
+        backlinkIdInSql = `AND id IN ( SELECT block_id FROM refs WHERE 1 = 1 ${defBlockIdInSql} ) `
+    }
+    if (!isValidStr(backlinkIdInSql)) {
+        return "";
+    }
 
 
     let sql = `
     WITH RECURSIVE parent_block AS (
     SELECT id, parent_id, markdown, type, CAST (id AS TEXT) AS childIdPath 
     FROM  blocks 
-    WHERE 1 = 1 
-        AND id IN ( 
-        	SELECT block_id 
-            FROM refs 
-            WHERE 1 = 1 ${idInSql}
-        )
+    WHERE 1 = 1  ${backlinkIdInSql}
     UNION ALL 
     SELECT t.id, t.parent_id, t.markdown, t.type, (p.childIdPath || '->' || t.id) AS childIdPath 
     FROM blocks t 
@@ -109,7 +116,6 @@ export function generateGetParentDefBlockArraySql(
 3. AND markdown REGEXP '\\(\\((\\d{14}-[a-zA-Z0-9]{7})\\s''[^'']+''\\)\\)'
 4. 存在较多反链块的时候，性能极差，决定分离
      */
-
 
     return cleanSpaceText(sql);
 }
@@ -192,15 +198,36 @@ export function generateGetChildDefBlockArraySql(
     queryParams: IBacklinkBlockQueryParams,
 ): string {
     let defBlockIds = queryParams.defBlockIds;
-    let idInSql = generateAndInConditions("def_block_id", defBlockIds);
+    let backlinkBlockIds = queryParams.backlinkBlockIds;
+
+    let backlinkIdInSql = "";
+    if (isArrayNotEmpty(backlinkBlockIds)) {
+        backlinkIdInSql = generateAndInConditions("id", backlinkBlockIds);
+    } else if (isArrayNotEmpty(defBlockIds)) {
+        let defBlockIdInSql = generateAndInConditions("def_block_id", defBlockIds);
+        backlinkIdInSql = `AND id IN ( SELECT block_id FROM refs WHERE 1 = 1 ${defBlockIdInSql} ) `
+    }
+    if (!isValidStr(backlinkIdInSql)) {
+        return "";
+    }
+
+    let whereSql = ` AND type IN ( 'h', 'c', 'm', 't', 'p', 'html', 'av', 'video', 'audio') `;
+    //     if (!queryParams.queryAllContentUnderHeadline) {
+    //         whereSql = `
+    // AND type IN ( 'h', 't', 'p' )
+    // AND markdown LIKE '%((%))%' 
+    //         `;
+    //     }
+
+
 
     let sql = `
     WITH RECURSIVE child_block AS (
         SELECT id,parent_id,markdown,type,CAST ( id AS TEXT ) AS parentIdPath 
         FROM blocks 
         WHERE 1 = 1 
-            AND id IN ( SELECT block_id FROM refs WHERE 1 = 1 ${idInSql} ) 
             AND type = 'h'
+            ${backlinkIdInSql}
     UNION ALL
         SELECT t.id, t.parent_id, t.markdown, t.type, ( c.parentIdPath || '->' || t.id ) AS parentIdPath 
         FROM blocks t
@@ -209,9 +236,7 @@ export function generateGetChildDefBlockArraySql(
         ) 
     SELECT * 
     FROM child_block 
-    WHERE 1 == 1 
-    	AND type IN ( 'h', 'l', 't', 'p' ) 
-        AND markdown LIKE '%((%))%' 
+    WHERE 1 == 1  ${whereSql} 
         LIMIT 9999999;
     `
     return cleanSpaceText(sql);

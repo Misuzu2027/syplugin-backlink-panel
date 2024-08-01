@@ -28,12 +28,12 @@ export class CacheManager {
         this.backlinkPanelBaseDataCache.delete(rootId);
     }
 
-    public setBacklinkDocApiData(defId: string, rootId: string, value: any, ttlSeconds: number) {
-        let key = generateKey(defId, rootId);
+    public setBacklinkDocApiData(defId: string, rootId: string, keyword: string, value: any, ttlSeconds: number) {
+        let key = generateKey(defId, rootId, keyword);
         this.backlinkDocApiDataCache.set(key, value, ttlSeconds * 1000);
     }
-    public getBacklinkDocApiData(defId: string, rootId: string,): any {
-        let key = generateKey(defId, rootId);
+    public getBacklinkDocApiData(defId: string, rootId: string, keyword: string): any {
+        let key = generateKey(defId, rootId, keyword);
         return this.backlinkDocApiDataCache.get(key);
     }
     public deleteBacklinkDocApiData(defId: string,) {

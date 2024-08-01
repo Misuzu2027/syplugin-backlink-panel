@@ -2,7 +2,7 @@
   "name": "syplugin-backlink-panel",
   "author": "Misuzu2027",
   "url": "https://github.com/Misuzu2027/syplugin-backlink-panel",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "minAppVersion": "3.0.1",
   "backends": [
    "all"
@@ -23,6 +23,6 @@
     "zh_CN": "README_zh_CN.md"
   },
   "keywords": [
-    "dock","document","文档"
+    "dock","backlink","反链"
   ]
 }

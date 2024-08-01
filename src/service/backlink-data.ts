@@ -1,5 +1,5 @@
 import { sql, getBatchBlockIdIndex, getBacklinkDoc } from "@/utils/api";
-import { generateGetParentDefBlockArraySql as generateGetParentBlockArraySql, generateGetBacklinkListItemBlockArraySql, generateGetDefBlockArraySql as generateGetDocDefBlockArraySql, generateGetBlockArraySql, generateGetParenListItemtDefBlockArraySql, generateGetChildDefBlockArraySql, generateGetBacklinkBlockArraySql } from "./backlink-sql";
+import { generateGetParentDefBlockArraySql, generateGetBacklinkListItemBlockArraySql, generateGetDefBlockArraySql as generateGetDocDefBlockArraySql, generateGetBlockArraySql, generateGetParenListItemtDefBlockArraySql, generateGetChildDefBlockArraySql, generateGetBacklinkBlockArraySql } from "./backlink-sql";
 import { IBacklinkFilterPanelData, IBacklinkBlockQueryParams, IBacklinkBlockNode, IBacklinkFilterPanelDataQueryParams, IPanelRenderBacklinkQueryParams, IBacklinkPanelRenderData } from "@/models/backlink-model";
 import { getObjectSizeInKB } from "@/utils/object-util";
 import { containsAllKeywords, countOccurrences, isValidStr, longestCommonSubstring, splitKeywordStringToArray } from "@/utils/string-util";
@@ -22,7 +22,7 @@ export async function getBacklinkPanelRenderData(
         return
     }
     let pageNum = 1;
-    let pageSize = queryParams.pageSize;
+    let pageSize = SettingService.ins.SettingConfig.pageSize;
     let rootId = backlinkPanelData.rootId;
 
     cleanInvalidQueryParams(queryParams, backlinkPanelData);
@@ -66,7 +66,6 @@ export async function getBacklinkPanelRenderData(
     );
 
     queryParams.pageNum = pageNum;
-    queryParams.pageSize = pageSize;
 
 
     let backlinkPanelRenderDataResult: IBacklinkPanelRenderData = {
@@ -98,7 +97,7 @@ export async function getTurnPageBacklinkPanelRenderData(
     queryParams: IPanelRenderBacklinkQueryParams,
 ): Promise<IBacklinkPanelRenderData> {
     let pageNum = queryParams.pageNum;
-    let pageSize = queryParams.pageSize;
+    let pageSize = SettingService.ins.SettingConfig.pageSize;
     let totalPage = calculateTotalPages(validBacklinkBlockNodeArray.length, pageSize);
     if (pageNum < 1) {
         pageNum = 1;
@@ -309,10 +308,12 @@ async function batchGetBacklinkDoc(
         // 提取反链块中的共同关键字
         let backlinkContent = node.block.content;
         let keyword = refTreeIdKeyWorldMap.get(backlinkRootId);
+        // keyword = "";
         if (keyword === undefined) {
             keyword = backlinkContent;
         } else {
-            // 一手动态规划提取连续相同的字符串！ 一些字符串会导致查询不到数据，需要观察一下。
+            // 一手动态规划提取连续相同的字符串！ 好像出现一些字符串导致查询不到数据，需要观察一下。
+            // 单引号无法查询 "'" ，在查询的时候过滤吧。
             keyword = longestCommonSubstring(keyword, backlinkContent);
         }
         refTreeIdKeyWorldMap.set(backlinkRootId, keyword);
@@ -393,8 +394,9 @@ function highlightBacklinkContent(backlinkArray: IBacklinkData[], keywordStr: st
 async function getBacklinkDocByApiOrCache(
     defId: string, refTreeID: string, keyword: string
 ): Promise<IBacklinkCacheData> {
+    keyword = formatBacklinkDocApiKeyword(keyword);
 
-    let backlinks = CacheManager.ins.getBacklinkDocApiData(defId, refTreeID);;
+    let backlinks = CacheManager.ins.getBacklinkDocApiData(defId, refTreeID, keyword);;
     let result: IBacklinkCacheData = { backlinks: backlinks, usedCache: false };
     if (backlinks) {
         result.usedCache = true;
@@ -413,12 +415,34 @@ async function getBacklinkDocByApiOrCache(
     if (cacheAfterResponseMs >= 0
         && cacheExpirationTime >= 0
         && executionTime > cacheAfterResponseMs) {
-        CacheManager.ins.setBacklinkDocApiData(defId, refTreeID, data.backlinks, cacheExpirationTime);
+        CacheManager.ins.setBacklinkDocApiData(defId, refTreeID, keyword, data.backlinks, cacheExpirationTime);
     }
 
     result.backlinks = backlinks;
     result.usedCache = false;
     return result;
+}
+
+function formatBacklinkDocApiKeyword(keyword: string): string {
+    if (!isValidStr(keyword)) {
+        return "";
+    }
+    let keywordSplitArray = keyword.split("'");
+    // 初始值设为空字符串
+    let longestSubstring = "";
+    // 遍历所有子字符串，找到最长的那个
+    for (const substring of keywordSplitArray) {
+        if (substring.length > longestSubstring.length) {
+            longestSubstring = substring;
+        }
+    }
+    if (longestSubstring.length > 100) {
+        longestSubstring = longestSubstring.substring(0, 50);
+    }
+    // 返回最长的子字符串
+    return longestSubstring;
+
+
 }
 
 function isBacklinkBlockValid(
@@ -530,15 +554,21 @@ export async function getBacklinkPanelData(
     }
 
     let defBlockIds = getBlockIds(curDocDefBlockArray);
-    queryParams.defBlockIds = defBlockIds;
+    let backlinkBlockQueryParams: IBacklinkBlockQueryParams = {
+        queryParentDefBlock: queryParams.queryParentDefBlock,
+        querrChildDefBlockForListItem: queryParams.querrChildDefBlockForListItem,
+        queryChildDefBlockForHeadline: queryParams.queryChildDefBlockForHeadline,
+        defBlockIds: defBlockIds
+    };
 
-    let backlinkBlockArray: BacklinkBlock[] = await getBacklinkBLockarry(queryParams);
+    let backlinkBlockArray: BacklinkBlock[] = await getBacklinkBlockArray(backlinkBlockQueryParams);
+    backlinkBlockQueryParams.backlinkBlocks = backlinkBlockArray;
+    backlinkBlockQueryParams.backlinkBlockIds = getBlockIds(backlinkBlockArray);
 
+    let backlinkParentBlockArray: BacklinkParentBlock[] = await getParentBlockArray(backlinkBlockQueryParams);
 
-    let backlinkChildBlockArray: BacklinkChildBlock[] = await getHeadlineChildBlockArray(queryParams);
+    let backlinkChildBlockArray: BacklinkChildBlock[] = await getHeadlineChildBlockArray(backlinkBlockQueryParams);
 
-
-    let backlinkParentBlockArray = await getParentBlockArray(queryParams);
 
     let backlinkPanelData = await buildBacklinkPanelData({ curDocDefBlockArray, backlinkBlockArray, backlinkChildBlockArray, backlinkParentBlockArray });
 
@@ -560,17 +590,16 @@ export async function getBacklinkPanelData(
     return backlinkPanelData;
 }
 
-async function getBacklinkBLockarry(queryParams: IBacklinkFilterPanelDataQueryParams): Promise<BacklinkBlock[]> {
+async function getBacklinkBlockArray(queryParams: IBacklinkBlockQueryParams): Promise<BacklinkBlock[]> {
     if (!queryParams) {
         return [];
     }
     let backlinkBlockArray: BacklinkBlock[];
-    let backlinkBlockQueryParams: IBacklinkBlockQueryParams = { defBlockIds: queryParams.defBlockIds }
     if (queryParams.querrChildDefBlockForListItem) {
-        let backlinkListItemBlockArraySql = generateGetBacklinkListItemBlockArraySql(backlinkBlockQueryParams);
+        let backlinkListItemBlockArraySql = generateGetBacklinkListItemBlockArraySql(queryParams);
         backlinkBlockArray = await sql(backlinkListItemBlockArraySql);
     } else {
-        let getBacklinkBlockArraySql = generateGetBacklinkBlockArraySql(backlinkBlockQueryParams);
+        let getBacklinkBlockArraySql = generateGetBacklinkBlockArraySql(queryParams);
         backlinkBlockArray = await sql(getBacklinkBlockArraySql);
     }
     backlinkBlockArray = backlinkBlockArray ? backlinkBlockArray : [];
@@ -578,13 +607,13 @@ async function getBacklinkBLockarry(queryParams: IBacklinkFilterPanelDataQueryPa
 }
 
 
-async function getHeadlineChildBlockArray(queryParams: IBacklinkFilterPanelDataQueryParams)
+async function getHeadlineChildBlockArray(queryParams: IBacklinkBlockQueryParams)
     : Promise<BacklinkChildBlock[]> {
     if (!queryParams || !queryParams.queryChildDefBlockForHeadline) {
         return [];
     }
-    let backlinkBlockQueryParams: IBacklinkBlockQueryParams = { defBlockIds: queryParams.defBlockIds }
-    let getHeadlineChildBlockSql = generateGetChildDefBlockArraySql(backlinkBlockQueryParams);
+
+    let getHeadlineChildBlockSql = generateGetChildDefBlockArraySql(queryParams);
     let headlineChildBlockArray: BacklinkChildBlock[] = await sql(getHeadlineChildBlockSql);
     headlineChildBlockArray = headlineChildBlockArray ? headlineChildBlockArray : [];
 
@@ -597,29 +626,29 @@ async function getHeadlineChildBlockArray(queryParams: IBacklinkFilterPanelDataQ
     return backlinkChildBlockArray;
 }
 
-async function getParentBlockArray(queryParams: IBacklinkFilterPanelDataQueryParams)
+async function getParentBlockArray(queryParams: IBacklinkBlockQueryParams)
     : Promise<BacklinkParentBlock[]> {
     if (!queryParams || !queryParams.queryParentDefBlock) {
         return [];
     }
 
-    let backlinkBlockQueryParams: IBacklinkBlockQueryParams = { defBlockIds: queryParams.defBlockIds }
-    let getParentBlockArraySql = generateGetParentBlockArraySql(backlinkBlockQueryParams);
+    let getParentBlockArraySql = generateGetParentDefBlockArraySql(queryParams);
     let parentBlockArray: BacklinkParentBlock[] = await sql(getParentBlockArraySql);
     parentBlockArray = parentBlockArray ? parentBlockArray : [];
 
-    let backlinkParentBlockIdSet: Set<string> = new Set<string>;
+    let backlinkParentListItemBlockIdSet: Set<string> = new Set<string>;
     for (const parentBlock of parentBlockArray) {
         if (parentBlock.type == 'i') {
             let count = countOccurrences(parentBlock.childIdPath, "->");
+            // 用于过滤反链块所在的列表项块
             if (count > 2) {
-                backlinkParentBlockIdSet.add(parentBlock.id);
+                backlinkParentListItemBlockIdSet.add(parentBlock.id);
             }
         }
     }
-    if (isSetNotEmpty(backlinkParentBlockIdSet)) {
-        backlinkBlockQueryParams.backlinkParentBlockIds = Array.from(backlinkParentBlockIdSet);
-        let getSubMarkdownSql = generateGetParenListItemtDefBlockArraySql(backlinkBlockQueryParams);
+    if (isSetNotEmpty(backlinkParentListItemBlockIdSet)) {
+        queryParams.backlinkParentBlockIds = Array.from(backlinkParentListItemBlockIdSet);
+        let getSubMarkdownSql = generateGetParenListItemtDefBlockArraySql(queryParams);
         let subMarkdownArray: BacklinkParentBlock[] = await sql(getSubMarkdownSql);
         subMarkdownArray = subMarkdownArray ? subMarkdownArray : [];
         let subMarkdownMap = new Map<string, string>();
@@ -658,25 +687,26 @@ function getBlockIds(blockList: DefBlock[]): string[] {
 }
 
 async function buildBacklinkPanelData(
-    param: {
+    paramObj: {
         curDocDefBlockArray: DefBlock[],
         backlinkBlockArray: BacklinkBlock[],
         backlinkChildBlockArray: BacklinkChildBlock[],
         backlinkParentBlockArray: BacklinkParentBlock[],
     }
 ): Promise<IBacklinkFilterPanelData> {
-    let defBlockIdArray = getBlockIds(param.curDocDefBlockArray);
+    let defBlockIdArray = getBlockIds(paramObj.curDocDefBlockArray);
 
     // 创建一个id到节点的映射
     const backlinkBlockMap: { [key: string]: IBacklinkBlockNode } = {};
     let relatedDefBlockCountMap = new Map<string, number>();
     let backlinkDocumentCountMap = new Map<string, number>();
+    let relatedDefBlockDynamicAnchorMap = new Map<string, Set<string>>();
     let relatedDefBlockStaticAnchorMap = new Map<string, Set<string>>();
     // 整个活，把关联的块的时间修改为反链块的时间。 map 的键是关联块的id
     let backlinkBlockCreatedMap = new Map<string, string>();
     let backlinkBlockUpdatedMap = new Map<string, string>();
 
-    for (const backlinkBlock of param.backlinkBlockArray) {
+    for (const backlinkBlock of paramObj.backlinkBlockArray) {
         let backlinkBlockNode: IBacklinkBlockNode = {
             block: { ...backlinkBlock, refCount: null },
             documentBlock: null,
@@ -698,8 +728,8 @@ async function buildBacklinkPanelData(
             if (defBlockIdArray.includes(relatedDefBlockId)) {
                 backlinkBlockNode.includeDirectDefBlockIds.add(relatedDefBlockId);
             } else {
-                backlinkBlockCreatedMap.set(relatedDefBlockId, backlinkBlock.created);
-                backlinkBlockUpdatedMap.set(relatedDefBlockId, backlinkBlock.updated);
+                updateMaxValueMap(backlinkBlockCreatedMap, relatedDefBlockId, backlinkBlock.created);
+                updateMaxValueMap(backlinkBlockUpdatedMap, relatedDefBlockId, backlinkBlock.updated);
                 updateMapCount(relatedDefBlockCountMap, relatedDefBlockId);
             }
 
@@ -708,17 +738,18 @@ async function buildBacklinkPanelData(
         updateStaticAnchorMap(backlinkBlockNode.staticAnchorMap, backlinkBlock.markdown);
 
         backlinkBlockNode.concatContent += content;
-        backlinkBlockCreatedMap.set(backlinkBlock.root_id, backlinkBlock.created);
-        backlinkBlockUpdatedMap.set(backlinkBlock.root_id, backlinkBlock.updated);
+        updateMaxValueMap(backlinkBlockCreatedMap, backlinkBlock.root_id, backlinkBlock.created);
+        updateMaxValueMap(backlinkBlockUpdatedMap, backlinkBlock.root_id, backlinkBlock.updated);
         updateMapCount(backlinkDocumentCountMap, backlinkBlock.root_id);
         // 更新所有关联块的静态锚文本
+        updateDynamicAnchorMap(relatedDefBlockDynamicAnchorMap, markdown);
         updateStaticAnchorMap(relatedDefBlockStaticAnchorMap, markdown);
         backlinkBlockMap[backlinkBlockNode.block.id] = backlinkBlockNode;
     }
     // 这里必须再生成一个关联块ID Set，用来区分下面父级关联块 markdown 中存在该关联块，防止set里的关联块重新计数
     let relatedDefBlockIdSet = new Set(relatedDefBlockCountMap.keys());
 
-    for (const childBlock of param.backlinkChildBlockArray) {
+    for (const childBlock of paramObj.backlinkChildBlockArray) {
         let markdown = childBlock.markdown;
         let backlnikChildDefBlockIdArray = getRefBlockId(markdown);
         let backlinkBlockId = childBlock.parentIdPath.split("->")[0];
@@ -733,12 +764,13 @@ async function buildBacklinkPanelData(
                 }
             }
             backlinkBlockNode.concatContent += markdown;
+            updateDynamicAnchorMap(relatedDefBlockDynamicAnchorMap, markdown);
             updateStaticAnchorMap(relatedDefBlockStaticAnchorMap, markdown);
         }
     }
 
 
-    for (const parentBlock of param.backlinkParentBlockArray) {
+    for (const parentBlock of paramObj.backlinkParentBlockArray) {
         let markdown = parentBlock.markdown;
         if (parentBlock.type == 'i' && parentBlock.subMarkdown) {
             markdown = parentBlock.subMarkdown;
@@ -756,6 +788,7 @@ async function buildBacklinkPanelData(
                 }
             }
             backlinkBlockNode.concatContent += markdown;
+            updateDynamicAnchorMap(relatedDefBlockDynamicAnchorMap, markdown);
             updateStaticAnchorMap(relatedDefBlockStaticAnchorMap, markdown);
             // updateMapCount(backlinkDocumentCountMap, parentBlock.root_id);
         }
@@ -782,11 +815,17 @@ async function buildBacklinkPanelData(
             let updated = backlinkBlockUpdatedMap.get(blockInfo.id);
             refBlockInfo.updated = updated ? updated : refBlockInfo.updated;
             relatedDefBlockArray.push(refBlockInfo);
+            let dnaymicAnchor = "";
             let staticAnchor = "";
-            let anchorSet = relatedDefBlockStaticAnchorMap.get(blockInfo.id);
-            if (anchorSet) {
-                staticAnchor = Array.from(anchorSet).join(' ');
+            let dynamicAnchorSet = relatedDefBlockDynamicAnchorMap.get(blockInfo.id);
+            if (dynamicAnchorSet) {
+                dnaymicAnchor = Array.from(dynamicAnchorSet).join(' ');
             }
+            let staticAnchorSet = relatedDefBlockStaticAnchorMap.get(blockInfo.id);
+            if (staticAnchorSet) {
+                staticAnchor = Array.from(staticAnchorSet).join(' ');
+            }
+            refBlockInfo.dynamicAnchor = dnaymicAnchor
             refBlockInfo.staticAnchor = staticAnchor;
         }
     }
@@ -814,13 +853,13 @@ async function buildBacklinkPanelData(
         node.documentBlock = docBlockInfo;
     }
 
-    let rootId = param.curDocDefBlockArray[0].root_id;
+    let rootId = paramObj.curDocDefBlockArray[0].root_id;
     let backlinkBlockNodeArray: IBacklinkBlockNode[] = Object.values(backlinkBlockMap);
 
     let backlinkPanelData: IBacklinkFilterPanelData = {
         rootId,
         backlinkBlockNodeArray,
-        curDocDefBlockArray: param.curDocDefBlockArray,
+        curDocDefBlockArray: paramObj.curDocDefBlockArray,
         relatedDefBlockArray,
         backlinkDocumentArray: backlinkDocumentArray,
     };
@@ -967,10 +1006,11 @@ export async function defBlockArrayTypeAndKeywordFilter(
 
     if (defBLockType) {
         for (const defBlock of defBlockArray) {
-            let hasStaticAnchor = isValidStr(defBlock.staticAnchor);
-            if (defBLockType == "dynamicAnchorText" && hasStaticAnchor) {
+            if (defBLockType == "dynamicAnchorText" && !isValidStr(defBlock.dynamicAnchor)) {
+                console.log("dynamicAnchorText defBlock ", defBlock)
                 defBlock.filterStatus = true;
-            } else if (defBLockType == "staticAnchorText" && !hasStaticAnchor) {
+            } else if (defBLockType == "staticAnchorText" && !isValidStr(defBlock.staticAnchor)) {
+                console.log("staticAnchorText defBlock ", defBlock)
                 defBlock.filterStatus = true;
             }
         }
@@ -1197,6 +1237,16 @@ function getFilterStatusSortResult(a: DefBlock, b: DefBlock): number {
         }
     }
     return null;
+}
+
+function updateMaxValueMap(map: Map<string, string>, key: string, value: string) {
+    if (!value) {
+        return;
+    }
+    let oldValue = map.get(key);
+    if (!oldValue || parseFloat(oldValue) < parseFloat(value)) {
+        map.set(key, value);
+    }
 }
 
 function updateMapCount(map: Map<string, number>, key: string, initialValue = 1) {

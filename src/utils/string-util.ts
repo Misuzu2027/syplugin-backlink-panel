@@ -39,6 +39,9 @@ export function containsAllKeywords(
 
 
 export function longestCommonSubstring(s1: string, s2: string): string {
+    if (!s1 || !s2) {
+        return "";
+    }
     s1 = s1 ? s1 : "";
     s2 = s2 ? s2 : "";
     const len1 = s1.length;

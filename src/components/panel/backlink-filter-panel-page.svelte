@@ -44,7 +44,7 @@
     import { onDestroy, onMount } from "svelte";
     import { getBlockTypeIconHref } from "@/utils/icon-util";
     import { CacheManager } from "@/config/CacheManager";
-    import { BacklinkFilterPanelCriteriaService } from "@/service/setting/BacklinkPanelFilterCriteriaService";
+    import { BacklinkFilterPanelAttributeService } from "@/service/setting/BacklinkPanelFilterCriteriaService";
     import { SettingService } from "@/service/setting/SettingService";
     import { delayedTwiceRefresh } from "@/utils/timing-util";
 
@@ -75,6 +75,9 @@
     let clickCount: number = 0;
     let clickTimeoutId: NodeJS.Timeout;
     let inputChangeTimeoutId: NodeJS.Timeout;
+    // 用来保存当前页面反链渲染区的展开折叠状态
+    let backlinkDocumentFoldMap: Map<string, boolean> = new Map();
+    let backlinkProtyleItemFoldMap: Map<string, Set<string>> = new Map();
 
     /* 控制页面元素的 */
     let panelFilterViewExpand: boolean = false;
@@ -107,7 +110,7 @@
             queryParams,
             backlinkPanelFilterViewExpand,
         };
-        BacklinkFilterPanelCriteriaService.ins.updatePanelCriteria(
+        BacklinkFilterPanelAttributeService.ins.updatePanelCriteria(
             rootId,
             criteria,
         );
@@ -221,7 +224,30 @@
         });
     }
 
-    function expandListItemNode(element: Element, depth: number) {
+    function foldListItemNodeByIdSet(element: Element, idSet: Set<string>) {
+        if (!element || !idSet) {
+            return;
+        }
+        let protyleWysiwygElement = element.querySelector(
+            "div.protyle-wysiwyg.protyle-wysiwyg--attr",
+        );
+        if (!protyleWysiwygElement) {
+            return;
+        }
+        // 先展开所有，然后再折叠对应的
+        expandAllListItemNode(element as HTMLElement);
+        for (const nodeId of idSet) {
+            let foldItemElement = protyleWysiwygElement.querySelector(
+                `div[data-type="NodeListItem"].li[data-node-id="${nodeId}"]`,
+            );
+            if (!foldItemElement) {
+                continue;
+            }
+            foldItemElement.setAttribute("fold", "1");
+        }
+    }
+
+    function expandListItemNodeByDepth(element: Element, depth: number) {
         if (!element || depth < 1) {
             return;
         }
@@ -282,7 +308,9 @@
             'div[data-type="NodeListItem"].li:not([fold])',
         );
         liNodes.forEach((node) => {
-            node.setAttribute("fold", "1");
+            if (syHasChildListNode(node)) {
+                node.setAttribute("fold", "1");
+            }
         });
     }
 
@@ -343,7 +371,7 @@
         }
 
         let defaultPanelCriteria =
-            await BacklinkFilterPanelCriteriaService.ins.getPanelCriteria(
+            await BacklinkFilterPanelAttributeService.ins.getPanelCriteria(
                 rootId,
             );
 
@@ -353,7 +381,7 @@
         queryParams.pageNum = 1;
 
         savedQueryParamMap =
-            await BacklinkFilterPanelCriteriaService.ins.getPanelSavedCriteriaMap(
+            await BacklinkFilterPanelAttributeService.ins.getPanelSavedCriteriaMap(
                 rootId,
             );
 
@@ -463,14 +491,45 @@
 
     function clearBacklinkProtyleList() {
         if (isArrayNotEmpty(editors)) {
-            editors.forEach((item) => {
-                item.destroy();
+            editors.forEach((editor) => {
+                // 清理前先保存列表项折叠状态。
+                updateBacklinkProtyleItemAndDocumentFoldMap(editor);
+                editor.destroy();
             });
         }
         editors = [];
         if (backlinkULElement) {
             backlinkULElement.innerHTML = "";
         }
+    }
+
+    function updateBacklinkProtyleItemAndDocumentFoldMap(editor) {
+        let documentLiElement =
+            editor.protyle.contentElement.parentElement.previousElementSibling;
+        let backlinkBlockId = documentLiElement.getAttribute(
+            "data-backlink-block-id",
+        );
+        let closeStatus = documentLiElement.classList.contains("backlink-hide");
+        if (closeStatus) {
+            backlinkDocumentFoldMap.set(backlinkBlockId, true);
+        }
+
+        let protyleWysiwygElement = editor.protyle.contentElement.querySelector(
+            "div.protyle-wysiwyg.protyle-wysiwyg--attr",
+        );
+        let foldItemElementArray = protyleWysiwygElement.querySelectorAll(
+            `div[data-type="NodeListItem"].li[fold="1"]`,
+        );
+        let foldSet = backlinkProtyleItemFoldMap.get(backlinkBlockId);
+        if (!foldSet) {
+            foldSet = new Set<string>();
+        }
+        foldSet.clear();
+        for (const itemElement of foldItemElementArray) {
+            let nodeId = itemElement.getAttribute("data-node-id");
+            foldSet.add(nodeId);
+        }
+        backlinkProtyleItemFoldMap.set(backlinkBlockId, foldSet);
     }
 
     function batchCreateOfficialBacklinkProtyle(
@@ -487,6 +546,7 @@
         for (const backlinkDoc of backlinkDataArray) {
             queryParams.includeRelatedDefBlockIds;
             let backlinkNode = backlinkDoc.backlinkBlock;
+            let backlinkBlockId = backlinkNode.id;
             let notebookId = backlinkNode.box;
 
             let documentName: string = "";
@@ -499,8 +559,9 @@
             let backlinkRootId = backlinkDoc.blockPaths[0].id;
             let backlinkRootHpath = backlinkDoc.blockPaths[0].name;
 
-            createdDocumentLiElement(
+            let documentLiElement = createdDocumentLiElement(
                 documentName,
+                backlinkBlockId,
                 backlinkRootId,
                 backlinkRootHpath,
             );
@@ -521,39 +582,132 @@
                     breadcrumb: false,
                 },
             });
-            afterCreateBacklinkProtyle(editor);
+            afterCreateBacklinkProtyle(backlinkDoc, documentLiElement, editor);
 
             editor.protyle.notebookId = notebookId;
             editors.push(editor);
         }
     }
 
-    function afterCreateBacklinkProtyle(protyle: Protyle) {
+    function afterCreateBacklinkProtyle(
+        backlinkData: IBacklinkData,
+        documentLiElement: HTMLElement,
+        protyle: Protyle,
+    ) {
         let protyleContentElement = protyle.protyle.contentElement;
 
+        // 隐藏筛选条件中不相干的列表项，
+        hideOtherListItemElement(backlinkData, protyle);
+
+        // 高亮搜索内容
         let keywordArray = splitKeywordStringToArray(
             queryParams.backlinkKeywordStr,
         );
         delayedTwiceRefresh(() => {
             highlightElementTextByCss(protyleContentElement, keywordArray);
         }, 0);
+        let backlinkBlockId = backlinkData.backlinkBlock.id;
 
-        // 展开列表项
-        let defaultExpandedListItemLevel =
-            SettingService.ins.SettingConfig.defaultExpandedListItemLevel;
-        if (defaultExpandedListItemLevel > 0) {
-            expandListItemNode(
-                protyle.protyle.contentElement,
-                defaultExpandedListItemLevel,
-            );
+        // 是否折叠反链
+        if (backlinkDocumentFoldMap.get(backlinkBlockId) === true) {
+            collapseBacklinkDocument(documentLiElement);
         }
+
+        // 展开列表项，首先判断有没有历史记录，存在历史记录则用记录
+        let foldIdSet = backlinkProtyleItemFoldMap.get(backlinkBlockId);
+        if (foldIdSet) {
+            foldListItemNodeByIdSet(protyle.protyle.contentElement, foldIdSet);
+        } else {
+            let defaultExpandedListItemLevel =
+                SettingService.ins.SettingConfig.defaultExpandedListItemLevel;
+            if (defaultExpandedListItemLevel > 0) {
+                expandListItemNodeByDepth(
+                    protyle.protyle.contentElement,
+                    defaultExpandedListItemLevel,
+                );
+            }
+        }
+    }
+
+    function hideOtherListItemElement(
+        backlinkData: IBacklinkData,
+        protyle: Protyle,
+    ) {
+        // 因为之前筛选面板的设计没有考虑到选择一个关联定义块后，隐藏其他没有这个定义块的列表这个功能，所以这里隐藏了，筛选面板不会隐藏，暂时不处理
+        return;
+        let protyleContentElement = protyle.protyle.contentElement;
+
+        let inclucdeRelatedDefBlockIds = queryParams.includeRelatedDefBlockIds;
+        if (
+            !inclucdeRelatedDefBlockIds ||
+            inclucdeRelatedDefBlockIds.size <= 0
+        ) {
+            return;
+        }
+
+        // 首先判断反链块是否是列表项
+        let targetBlockParentElement = protyleContentElement.querySelector(
+            `div[data-node-id='${backlinkData.backlinkBlock.id}']`,
+        ).parentElement;
+        if (
+            !targetBlockParentElement.matches(`div[data-type="NodeListItem"]`)
+        ) {
+            return;
+        }
+
+        // 获取所有子列表项块
+        let allListItemElement = targetBlockParentElement.querySelectorAll(
+            `div[data-type="NodeListItem"]`,
+        );
+        // 先把所有列表项块隐藏
+        for (const itemElement of allListItemElement) {
+            itemElement.classList.add("fn__none");
+        }
+        // 遍历列表项节点，把符合条件的列表项节点显示出来：包含定义块的列表项块；定义块下的列表项块。
+        for (const itemElement of allListItemElement) {
+            if (!itemElement.classList.contains("fn__none")) {
+                continue;
+            }
+            for (const blockId of inclucdeRelatedDefBlockIds) {
+                let refBlockElement = itemElement.querySelector(
+                    `span[data-type="block-ref"][data-id="${blockId}"]`,
+                );
+                if (!refBlockElement) {
+                    continue;
+                }
+                itemElement.classList.remove("fn__none");
+                let refBlockParentItemElement =
+                    getParentListItemElement(refBlockElement);
+                if (refBlockParentItemElement) {
+                    let refBlockChildListItemElement =
+                        refBlockParentItemElement.querySelectorAll(
+                            `div[data-type="NodeListItem"]`,
+                        );
+                    for (const itemElement of refBlockChildListItemElement) {
+                        itemElement.classList.remove("fn__none");
+                    }
+                }
+            }
+        }
+    }
+
+    function getParentListItemElement(element: Element): Element {
+        let itemElement = element;
+        while (
+            itemElement &&
+            !itemElement.matches(`div[data-type="NodeListItem"]`)
+        ) {
+            itemElement = itemElement.parentElement;
+        }
+        return itemElement;
     }
 
     function createdDocumentLiElement(
         documentName: string,
+        backlinkBlockId: string,
         backlinkRootId: string,
         backlinkRootHpath: string,
-    ) {
+    ): HTMLElement {
         let documentLiElement = document.createElement("li");
 
         documentLiElement.classList.add(
@@ -562,6 +716,10 @@
             "list-item__document-name",
         );
         documentLiElement.setAttribute("data-node-id", backlinkRootId);
+        documentLiElement.setAttribute(
+            "data-backlink-block-id",
+            backlinkBlockId,
+        );
 
         documentLiElement.innerHTML = `
 <span style="padding-left: 4px;margin-right: 2px" class="b3-list-item__toggle b3-list-item__toggle--hl">
@@ -597,6 +755,7 @@ ${documentName}
             });
 
         backlinkULElement.append(documentLiElement);
+        return documentLiElement;
     }
 
     function getDefBlockAriaLabel(
@@ -643,7 +802,7 @@ ${documentName}
 
     function resetFilterQueryParametersToDefault() {
         let defaultQueryParams =
-            BacklinkFilterPanelCriteriaService.ins.getDefaultQueryParams();
+            BacklinkFilterPanelAttributeService.ins.getDefaultQueryParams();
 
         queryParams.filterPanelCurDocDefBlockSortMethod =
             defaultQueryParams.filterPanelCurDocDefBlockSortMethod;
@@ -668,7 +827,7 @@ ${documentName}
 
     function resetBacklinkQueryParametersToDefault() {
         let defaultQueryParams =
-            BacklinkFilterPanelCriteriaService.ins.getDefaultQueryParams();
+            BacklinkFilterPanelAttributeService.ins.getDefaultQueryParams();
         queryParams.backlinkCurDocDefBlockType =
             defaultQueryParams.backlinkCurDocDefBlockType;
         queryParams.backlinkBlockSortMethod =
@@ -826,7 +985,7 @@ ${documentName}
             savedQueryParams,
         );
         savedQueryParamMap.set(saveCriteriaInputText, savedQueryParams);
-        BacklinkFilterPanelCriteriaService.ins.updatePanelSavedCriteriaMap(
+        BacklinkFilterPanelAttributeService.ins.updatePanelSavedCriteriaMap(
             rootId,
             savedQueryParamMap,
         );
@@ -877,7 +1036,7 @@ ${documentName}
     }
     function hadnleSavedPanelCriteriaDeleteClick(name: string) {
         savedQueryParamMap.delete(name);
-        BacklinkFilterPanelCriteriaService.ins.updatePanelSavedCriteriaMap(
+        BacklinkFilterPanelAttributeService.ins.updatePanelSavedCriteriaMap(
             rootId,
             savedQueryParamMap,
         );
@@ -1238,7 +1397,6 @@ ${documentName}
             </div>
         </div>
     {/if}
-    <hr />
     <!-- 反链块展示区 -->
     <div class="backlink-panel__header">
         <div
@@ -1529,8 +1687,8 @@ ${documentName}
     }
 
     .backlink-panel-filter {
-        margin: 0px 5px;
-        padding: 6px 3px 6px 13px;
+        margin: 5px 5px;
+        padding: 0px 3px 3px 13px;
         transition:
             transform 0.3s ease,
             box-shadow 0.3s ease;
@@ -1586,8 +1744,6 @@ ${documentName}
     .backlink-panel__header {
         position: sticky;
         top: 0;
-        /* background-color: #333;
-        color: white; */
         text-align: center;
         padding: 0px 0;
         z-index: 2;

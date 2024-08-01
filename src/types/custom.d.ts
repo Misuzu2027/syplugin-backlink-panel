@@ -19,6 +19,7 @@ type BacklinkBlock = DefBlock & {
 
 type DefBlock = Block & {
     refCount: number;
+    dynamicAnchor: string;
     staticAnchor: string;
     selectionStatus: string;
     filterStatus: boolean;

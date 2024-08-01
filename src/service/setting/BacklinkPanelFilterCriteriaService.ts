@@ -9,10 +9,11 @@ import { mergeObjects } from "@/utils/object-util";
 
 const BACKLINK_FILTER_PANEL_DEFAULT_CRITERIA_ATRIBUTE_KEY = "custom-backlink-filter-panel-default-criteria";
 const BACKLINK_FILTER_PANEL_SAVED_CRITERIA_ATTRIBUTE_KEY = "custom-backlink-filter-panel-saved-criteria";
-export class BacklinkFilterPanelCriteriaService {
+export const DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY = "custom-document-bottom-show-backlink-filter-panel";
+export class BacklinkFilterPanelAttributeService {
 
-    public static get ins(): BacklinkFilterPanelCriteriaService {
-        return Instance.get(BacklinkFilterPanelCriteriaService);
+    public static get ins(): BacklinkFilterPanelAttributeService {
+        return Instance.get(BacklinkFilterPanelAttributeService);
     }
 
 
@@ -21,11 +22,12 @@ export class BacklinkFilterPanelCriteriaService {
         let queryParams;
         if (documentPanelCriteria) {
             let defaultQueryParams = this.getDefaultQueryParams();
+            documentPanelCriteria.queryParams.pageNum = 1;
             queryParams = mergeObjects(documentPanelCriteria.queryParams, defaultQueryParams);
         } else {
             queryParams = this.getDefaultQueryParams();
             documentPanelCriteria = new BacklinkPanelFilterCriteria();
-
+            documentPanelCriteria.backlinkPanelFilterViewExpand = SettingService.ins.SettingConfig.filterPanelViewExpand;
             CacheManager.ins.setBacklinkFilterPanelDefaultCriteria(rootId, documentPanelCriteria);
         }
 
@@ -74,7 +76,7 @@ export class BacklinkFilterPanelCriteriaService {
         }
 
         let attrsMap = await getBlockAttrs(rootId);
-        console.log("getPanelSavedCriteriaMap attrsMap : ", attrsMap)
+        // console.log("getPanelSavedCriteriaMap attrsMap : ", attrsMap)
         if (attrsMap && Object.keys(attrsMap).includes(BACKLINK_FILTER_PANEL_SAVED_CRITERIA_ATTRIBUTE_KEY)) {
             let json = attrsMap[BACKLINK_FILTER_PANEL_SAVED_CRITERIA_ATTRIBUTE_KEY];
             let parseObject = JSON.parse(json, setReviver);
@@ -113,17 +115,43 @@ export class BacklinkFilterPanelCriteriaService {
     }
 
 
+    public async getDocumentBottomShowPanel(rootId: string): Promise<number> {
+
+        let attrsMap = await getBlockAttrs(rootId);
+        if (attrsMap && Object.keys(attrsMap).includes(DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY)) {
+            let json = attrsMap[DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY];
+            return Number(json);
+        }
+
+        return null;
+    }
+
+
+    public async updateDocumentBottomShowPanel(rootId: string, value: number) {
+        if (!rootId) {
+            return;
+        }
+        let valueStr;
+        if (value) {
+            valueStr = String(value);
+        }
+        if (!valueStr) {
+            valueStr = "";
+        }
+
+        let attrs = {};
+        attrs[DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY] = valueStr;
+        setBlockAttrs(rootId, attrs);
+    }
+
 
     getDefaultQueryParams(): IPanelRednerFilterQueryParams {
         let settingConfig = SettingService.ins.SettingConfig;
-        let pageSize = 8;
         let backlinkBlockSortMethod = "modifiedDesc";
         let filterPanelCurDocDefBlockSortMethod = "typeAndContent";
         let filterPanelRelatedDefBlockSortMethod = "modifiedDesc";
         let filterPanelbacklinkDocumentSortMethod = "createdDesc";
-
         if (!settingConfig) {
-            pageSize = settingConfig.pageSize ? settingConfig.pageSize : pageSize;
             backlinkBlockSortMethod = settingConfig.backlinkBlockSortMethod ? settingConfig.backlinkBlockSortMethod : backlinkBlockSortMethod;
             filterPanelCurDocDefBlockSortMethod = settingConfig.filterPanelCurDocDefBlockSortMethod ? settingConfig.filterPanelCurDocDefBlockSortMethod : filterPanelCurDocDefBlockSortMethod;
             filterPanelRelatedDefBlockSortMethod = settingConfig.filterPanelRelatedDefBlockSortMethod ? settingConfig.filterPanelRelatedDefBlockSortMethod : filterPanelRelatedDefBlockSortMethod;
@@ -131,7 +159,6 @@ export class BacklinkFilterPanelCriteriaService {
         }
         let queryParams = {
             pageNum: 1,
-            pageSize: pageSize,
             backlinkCurDocDefBlockType: "all",
             backlinkBlockSortMethod: backlinkBlockSortMethod,
             backlinkKeywordStr: "",
@@ -150,11 +177,6 @@ export class BacklinkFilterPanelCriteriaService {
 
         return queryParams;
     }
-
-
-
-
-
 
 
 }

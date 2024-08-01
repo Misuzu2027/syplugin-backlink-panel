@@ -10,10 +10,11 @@ export function getSettingTabArray(): TabProperty[] {
     tabProperties.push(
         new TabProperty({
             key: "filter-panel-setting", name: "筛选面板", iconKey: "iconFilter", props: [
-                new ItemProperty({ key: "queryParentDefBlock", type: "switch", name: "查询父级关联定义块", description: "", tips: "" }),
-                new ItemProperty({ key: "querrChildDefBlockForListItem", type: "switch", name: "查询列表项下关联定义块", description: "如果反链块的父级是列表项快，则查询该列表项块底下的所有关联定义块", tips: "" }),
-                new ItemProperty({ key: "queryChildDefBlockForHeadline", type: "switch", name: "查询标题下关联定义块", description: "如果反链块是标题块，则查询标题下的所有关联定义块", tips: "" }),
+                new ItemProperty({ key: "filterPanelViewExpand", type: "switch", name: "默认展开筛选面板", description: "", tips: "" }),
 
+                new ItemProperty({ key: "queryParentDefBlock", type: "switch", name: "查询父级关联定义块", description: "", tips: "" }),
+                new ItemProperty({ key: "querrChildDefBlockForListItem", type: "switch", name: "查询列表项下关联定义块", description: "如果反链块的父级是列表项块，则查询该列表项块底下的所有关联定义块", tips: "" }),
+                new ItemProperty({ key: "queryChildDefBlockForHeadline", type: "switch", name: "查询标题下关联定义块", description: "如果反链块是标题块，则查询标题下的所有关联定义块", tips: "" }),
 
                 new ItemProperty({ key: "filterPanelCurDocDefBlockSortMethod", type: "select", name: "当前文档定义块排序方式", description: "", tips: "", options: geturDocDefBlockSortMethodElement() }),
                 new ItemProperty({ key: "filterPanelRelatedDefBlockSortMethod", type: "select", name: "关联定义块排序方式", description: "", tips: "", options: getRelatedDefBlockSortMethodElement() }),
@@ -25,12 +26,15 @@ export function getSettingTabArray(): TabProperty[] {
         new TabProperty({
             key: "backlink-panel-setting", name: "反链面板", iconKey: "iconLink", props: [
 
-                new ItemProperty({ key: "pageSize", type: "number", name: "页数", description: "每页反链块显示的数量", tips: "", min: 1, max: 50 }),
+                new ItemProperty({ key: "pageSize", type: "number", name: "每页反链块数量", description: "每页反链块显示的数量", tips: "", min: 1, max: 50 }),
                 new ItemProperty({ key: "backlinkBlockSortMethod", type: "select", name: "反链块排序方式", description: "", tips: "", options: getBacklinkBlockSortMethodOptions() }),
 
-                new ItemProperty({ key: "defaultExpandedListItemLevel", type: "number", name: "默认展开列表项层数", description: "如果反链所在是列表项，默认展开的层数。", tips: "",min: 0, max: 10 }),
+                new ItemProperty({ key: "defaultExpandedListItemLevel", type: "number", name: "默认展开列表项层数", description: "如果反链所在是列表项，默认展开的层数。", tips: "", min: 0, max: 10 }),
 
                 new ItemProperty({ key: "hideBacklinkProtyleBreadcrumb", type: "switch", name: "隐藏面包屑", description: "", tips: "" }),
+
+                // new ItemProperty({ key: "queryAllContentUnderHeadline", type: "switch", name: "反链区域关键字查询标题下的所有内容", description: "必须开启 查询标题下关联定义块 才可生效。", tips: "" }),
+
 
             ]
 

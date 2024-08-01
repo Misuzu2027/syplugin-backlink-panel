@@ -50,7 +50,7 @@
     "flatDocumentTreeDock": "扁平化文档树 Dock",
     "previousLabel": "上一页",
     "nextLabel": "下一页",
-    "findInBacklink": "共 ${x} 个反链",
+    "findInBacklink": "共 ${x} 个反链块",
     "notebookFilter": "笔记本过滤",
     "attr": "属性",
     "other": "其他",

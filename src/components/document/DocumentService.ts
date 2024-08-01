@@ -2,6 +2,8 @@ import { EnvConfig } from "@/config/EnvConfig";
 import BacklinkFilterPanelPageSvelte from "@/components/panel/backlink-filter-panel-page.svelte";
 import { SettingService } from "@/service/setting/SettingService";
 import Instance from "@/utils/Instance";
+import { Menu } from "siyuan";
+import { BacklinkFilterPanelAttributeService, DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY } from "@/service/setting/BacklinkPanelFilterCriteriaService";
 
 
 let backlinkPanelPageSvelteMap: Map<string, BacklinkFilterPanelPageSvelte> = new Map();
@@ -17,30 +19,70 @@ export class DocumentService {
     public init() {
         EnvConfig.ins.plugin.eventBus.on("loaded-protyle-static", (e: any) => {
             // console.log("loaded-protyle-static e : ", e)
-            addBacklinkPanelToBottom(e);
+            handleSwitchProtyleOrLoadedProtyleStatic(e);
         });
 
         EnvConfig.ins.plugin.eventBus.on("switch-protyle", (e: any) => {
             // console.log("switch-protyle e : ", e)
-            addBacklinkPanelToBottom(e);
+            handleSwitchProtyleOrLoadedProtyleStatic(e);
         });
 
         EnvConfig.ins.plugin.eventBus.on("destroy-protyle", (e: any) => {
             handleDestroyProtyle(e);
         });
+
+        EnvConfig.ins.plugin.eventBus.on("click-editortitleicon", (e: any) => {
+            hadnleClickEditorTitleIcon(e);
+        });
+        // EnvConfig.ins.plugin.addCommand({
+        //     langKey: "showDocumentBottomBacklinkPanel",
+        //     langText: "始终显示底部反链面板",
+        //     hotkey: "⌥⇧⌘A",
+        //     editorCallback: (protyle: any) => {
+        //         console.log(protyle, "editorCallback");
+        //     },
+        // });
+
         intervalSetNodePaddingBottom();
     }
-
-
 }
 
-function addBacklinkPanelToBottom(e) {
+function handleSwitchProtyleOrLoadedProtyleStatic(e) {
+    let wysiwygElement = e.detail.protyle.wysiwyg.element as Element;
     let documentBottomDisplay = SettingService.ins.SettingConfig.documentBottomDisplay;
+    if (wysiwygElement && wysiwygElement.matches(".protyle-wysiwyg--attr")) {
+        let attributeValue = wysiwygElement.getAttribute(DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY);
+        if (attributeValue == "1") {
+            documentBottomDisplay = true;
+        } else if (attributeValue == "-1") {
+            documentBottomDisplay = false;
+        }
+    }
     if (!documentBottomDisplay) {
         return;
     }
+
+    let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
+    let rootId = e.detail.protyle.block.rootID;
+    addBacklinkPanelToBottom(docuemntContentElement, rootId);
+
+}
+
+function handleDestroyProtyle(e) {
+    let rootId = e.detail.protyle.block.rootID;
+    documentProtyleElementMap.delete(rootId);
+
     let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
     if (!docuemntContentElement) {
+        return;
+
+    }
+    destroyPanel(docuemntContentElement);
+}
+
+
+function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, rootId: string) {
+    if (!docuemntContentElement || !rootId) {
         return;
     }
     let protyleWysiwygElement = docuemntContentElement.querySelector(".protyle-wysiwyg.protyle-wysiwyg--attr");
@@ -48,7 +90,6 @@ function addBacklinkPanelToBottom(e) {
     if (backlinkPanelBottomElement) {
         return;
     }
-    let rootId = e.detail.protyle.block.rootID;
 
     backlinkPanelBottomElement = document.createElement("div");
     backlinkPanelBottomElement.classList.add(
@@ -63,6 +104,8 @@ function addBacklinkPanelToBottom(e) {
     docuemntContentElement.appendChild(backlinkPanelBottomElement);
     backlinkPanelBottomElement.setAttribute("data-root-id", rootId);
 
+    let hrElement = document.createElement("hr");
+    backlinkPanelBottomElement.appendChild(hrElement);
 
     let pageSvelte = new BacklinkFilterPanelPageSvelte({
         target: backlinkPanelBottomElement,
@@ -78,15 +121,7 @@ function addBacklinkPanelToBottom(e) {
 }
 
 
-function handleDestroyProtyle(e) {
-    let rootId = e.detail.protyle.block.rootID;
-    documentProtyleElementMap.delete(rootId);
-
-    let documentBottomDisplay = SettingService.ins.SettingConfig.documentBottomDisplay;
-    if (!documentBottomDisplay) {
-        return;
-    }
-    let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
+function destroyPanel(docuemntContentElement: HTMLElement) {
     if (!docuemntContentElement) {
         return;
     }
@@ -104,9 +139,65 @@ function handleDestroyProtyle(e) {
     }
     backlinkPanelPageSvelteMap.delete(panelRootId);
     pageSvelte.$destroy();
+    backlinkPanelBottomElement.remove();
+
 }
 
+function hadnleClickEditorTitleIcon(e) {
+
+
+    (e.detail.menu as Menu).addItem({
+        icon: "BacklinkPanelFilter",
+        type: "submenu",
+        label: "反链筛选面板",
+        submenu: getDocumentBlockIconMenus(e)
+    });
+}
+
+function getDocumentBlockIconMenus(e) {
+    let rootId = e.detail.data.rootID;
+    if (!rootId) {
+        return;
+    }
+    let submenus = [];
+    submenus.push({
+        label: "恢复默认",
+        click: async () => {
+            await BacklinkFilterPanelAttributeService.ins.updateDocumentBottomShowPanel(rootId, null);
+            let documentBottomDisplay = SettingService.ins.SettingConfig.documentBottomDisplay;
+            if (documentBottomDisplay) {
+                let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
+                addBacklinkPanelToBottom(docuemntContentElement, rootId);
+            } else {
+                handleDestroyProtyle(e);
+            }
+        }
+    });
+    submenus.push({
+        label: "始终显示文档底部反链",
+        click: async () => {
+            await BacklinkFilterPanelAttributeService.ins.updateDocumentBottomShowPanel(rootId, 1);
+
+            let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
+            addBacklinkPanelToBottom(docuemntContentElement, rootId);
+        }
+    });
+    submenus.push({
+        label: "始终隐藏文档底部反链",
+        click: async () => {
+            BacklinkFilterPanelAttributeService.ins.updateDocumentBottomShowPanel(rootId, -1);
+            let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
+            destroyPanel(docuemntContentElement);
+        }
+    });
+
+    return submenus;
+}
+
+
+
 function intervalSetNodePaddingBottom() {
+    // 后续看能不能优化成响应式的。。
     setInterval(() => {
         if (documentProtyleElementMap.size <= 0) {
             return;
@@ -114,8 +205,15 @@ function intervalSetNodePaddingBottom() {
         let paddingBottomSize = "48px";
         for (const key of documentProtyleElementMap.keys()) {
             let protyleElement = documentProtyleElementMap.get(key);
+
             if (parseFloat(protyleElement.style.paddingBottom) > 88) {
                 protyleElement.style.paddingBottom = paddingBottomSize;
+            }
+            let panelElement = protyleElement.parentElement.querySelector(".backlink-panel-document-bottom__area") as HTMLElement;
+            if (panelElement && protyleElement.style.paddingLeft != panelElement.style.paddingLeft) {
+                let paddingLeftPx = parseFloat(protyleElement.style.paddingLeft) < 48 ? protyleElement.style.paddingLeft : '48px';
+                panelElement.style.paddingLeft = paddingLeftPx;
+                panelElement.style.paddingRight = paddingLeftPx;
             }
         }
     }, 20);

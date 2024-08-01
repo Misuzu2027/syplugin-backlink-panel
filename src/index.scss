@@ -8,14 +8,15 @@ div.backlink-panel__area .sy__backlink .protyle-wysiwyg>[data-node-id]:last-chil
     margin-bottom: 0px;
 }
 
-div.backlink-panel__area .list-item__document-name {
+div.backlink-panel__area .sy__backlink .list-item__document-name {
     line-height: 28px;
     min-height: 28px;
     padding: 0 4px;
     display: flex;
-
+    z-index: 1;
     align-items: center;
     position: relative;
+    background-color: var(--b3-theme-surface);
 
     text-align: left;
     border: 0;
@@ -48,20 +49,13 @@ div.backlink-panel__area .hide-breadcrumb .protyle-breadcrumb__bar.protyle-bread
 
 /* 文档底部样式 */
 div.backlink-panel-document-bottom__area {
-    padding: 16px 48px;
+    padding: 8px 48px;
 
 }
 
-div.backlink-panel__area .sy__backlink li.list-item__document-name {
-    z-index: 1;
-}
 
 
 /* 手机端样式 */
 div.document-panel-plugin-mobile.backlink-panel-document-bottom__area {
     padding: 8px 10px;
-}
-
-div.document-panel-plugin-mobile.backlink-panel-document-bottom__area .list-item__document-name.b3-list-item {
-    background-color: var(--b3-theme-surface);
 }

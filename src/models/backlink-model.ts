@@ -5,14 +5,18 @@ export interface IBacklinkFilterPanelDataQueryParams {
     queryParentDefBlock?: boolean;
     querrChildDefBlockForListItem?: boolean;
     queryChildDefBlockForHeadline?: boolean;
-    defBlockIds?: string[];
-    backlinkParentBlockIds?: string[];
 }
 
 
 export interface IBacklinkBlockQueryParams {
+    queryParentDefBlock?: boolean;
+    querrChildDefBlockForListItem;
+    queryChildDefBlockForHeadline?: boolean;
     defBlockIds: string[];
+    backlinkBlockIds?: string[];
+    backlinkBlocks?: BacklinkBlock[];
     backlinkParentBlockIds?: string[];
+    // queryAllContentUnderHeadline?: boolean;
     // includeTypes: string[];
     // relatedDefBlockIdArray?: string[];
 }

@@ -13,6 +13,7 @@ export class DockService {
 
     init() {
         addBacklinkPanelDock();
+
     }
 
 
@@ -36,7 +37,8 @@ function addBacklinkPanelDock() {
             position: "RightBottom",
             size: { width: 300, height: 0 },
             icon: CUSTOM_ICON_MAP.BacklinkPanelFilter.id,
-            title: "反链过滤面板",
+            title: "反链筛选面板 Dock",
+            hotkey: "⌥⇧B",
             show: false,
         },
         data: {},

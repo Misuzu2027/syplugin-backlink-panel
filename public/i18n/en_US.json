@@ -50,7 +50,7 @@
     "flatDocumentTreeDock": "Flat Document Tree Dock",
     "previousLabel": "Previous",
     "nextLabel": "Next",
-    "findInBacklink": "Found ${x} backlinks",
+    "findInBacklink": "Found ${x} backlink blocks",
     "notebookFilter": "Notebook Filter",
     "attr": "Attribute",
     "other": "Other",

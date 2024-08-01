@@ -1,4 +1,5 @@
 import {
+    Menu,
     Plugin,
 } from "siyuan";
 import "@/index.scss";
@@ -21,6 +22,7 @@ export default class PluginSample extends Plugin {
         DocumentService.ins.init();
         DockService.ins.init();
 
+        
         // 图标的制作参见帮助文档
         for (const key in CUSTOM_ICON_MAP) {
             if (Object.prototype.hasOwnProperty.call(CUSTOM_ICON_MAP, key)) {
@@ -39,6 +41,9 @@ export default class PluginSample extends Plugin {
             }
         })
     }
+
+
+
 
     onLayoutReady() {
 

@@ -3,6 +3,7 @@ import { isValidStr } from "@/utils/string-util";
 
 export class SettingConfig {
     // 筛选面板
+    filterPanelViewExpand: boolean;
     queryParentDefBlock: boolean;
     querrChildDefBlockForListItem: boolean;
     queryChildDefBlockForHeadline: boolean;
@@ -16,6 +17,7 @@ export class SettingConfig {
     backlinkBlockSortMethod: BlockSortMethod;
     hideBacklinkProtyleBreadcrumb: boolean;
     defaultExpandedListItemLevel: number;
+    // queryAllContentUnderHeadline: boolean;
 
 
     // 插件设置

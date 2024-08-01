@@ -49,7 +49,7 @@ export class SettingService {
 
     public async updateSettingCofnigValue(key: string, newValue: any) {
         let oldValue = this._settingConfig[key];
-        if (oldValue == undefined || newValue == undefined || oldValue == newValue) {
+        if (oldValue == newValue) {
             return;
         }
 
@@ -130,7 +130,7 @@ function getDefaultSettingConfig() {
     let defaultConfig = new SettingConfig();
     defaultConfig.queryParentDefBlock = true;
     defaultConfig.querrChildDefBlockForListItem = true;
-    defaultConfig.queryChildDefBlockForHeadline = true;
+    defaultConfig.queryChildDefBlockForHeadline = false;
     defaultConfig.filterPanelCurDocDefBlockSortMethod = "typeAndContent";
     defaultConfig.filterPanelRelatedDefBlockSortMethod = "modifiedDesc";
     defaultConfig.filterPanelBacklinkDocumentSortMethod = "createdDesc";
@@ -140,12 +140,12 @@ function getDefaultSettingConfig() {
     defaultConfig.backlinkBlockSortMethod = "modifiedDesc";
     defaultConfig.hideBacklinkProtyleBreadcrumb = false;
     defaultConfig.defaultExpandedListItemLevel = 0;
-
+    // defaultConfig.queryAllContentUnderHeadline = false;
 
     defaultConfig.dockDisplay = true;
     defaultConfig.documentBottomDisplay = true;
     defaultConfig.topBarDisplay = true;
-    
+
     defaultConfig.cacheAfterResponseMs = -1;
     defaultConfig.cacheExpirationTime = 5 * 60;
     defaultConfig.usePraentIdIdx = false;
