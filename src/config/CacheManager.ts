@@ -32,8 +32,8 @@ export class CacheManager {
         let key = generateKey(defId, rootId, keyword);
         this.backlinkDocApiDataCache.set(key, value, ttlSeconds * 1000);
     }
-    public getBacklinkDocApiData(defId: string, rootId: string, keyword: string): any {
-        let key = generateKey(defId, rootId, keyword);
+    public getBacklinkDocApiData(rootId: string, defId: string, backlinkRootId: string, keyword: string): any {
+        let key = generateKey(rootId, defId, backlinkRootId, keyword);
         return this.backlinkDocApiDataCache.get(key);
     }
     public deleteBacklinkDocApiData(defId: string,) {

@@ -2,7 +2,7 @@ import { EnvConfig } from "@/config/EnvConfig";
 import { SettingConfig } from "@/models/setting-model";
 import { sql } from "@/utils/api";
 import Instance from "@/utils/Instance";
-import { getCreateBlocksParentIdIdxSql } from "../backlink-sql";
+import { getCreateBlocksParentIdIdxSql } from "../backlink/backlink-sql";
 import { setReplacer } from "@/utils/json-util";
 import { mergeObjects } from "@/utils/object-util";
 
@@ -149,6 +149,7 @@ function getDefaultSettingConfig() {
     defaultConfig.cacheAfterResponseMs = -1;
     defaultConfig.cacheExpirationTime = 5 * 60;
     defaultConfig.usePraentIdIdx = false;
+    defaultConfig.doubleClickTimeout = 0;
 
 
     return defaultConfig;

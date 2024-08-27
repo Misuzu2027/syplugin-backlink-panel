@@ -1,19 +1,26 @@
 <script lang="ts">
     import { EnvConfig } from "@/config/EnvConfig";
-    import { onMount } from "svelte";
+    import { onDestroy, onMount } from "svelte";
     import BacklinkFilterPanelPageSvelte from "@/components/panel/backlink-filter-panel-page.svelte";
+    import { isValidStr } from "@/utils/string-util";
 
     let isMobile = false;
     let dockActive: boolean;
     let lastRootId: string;
 
     let rootId: string;
-    let focusBlockId;
+    let focusBlockId: string;
+
+    let mobileSidebarObserver: MutationObserver;
 
     // let rootElement: HTMLElement;
 
     onMount(async () => {
         init();
+        initObserver();
+    });
+    onDestroy(() => {
+        destroyObserver();
     });
 
     export function resize(clientWidth?: number) {
@@ -39,6 +46,39 @@
             if (dockActive) {
                 rootId = lastRootId;
             }
+        }
+    }
+
+    function initObserver() {
+        if (!isMobile) {
+            return;
+        }
+        const sidebarElement = document.getElementById("sidebar");
+
+        if (!sidebarElement) {
+            return;
+        }
+        mobileSidebarObserver = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === "style") {
+                    const newTransform = (mutation.target as HTMLElement).style
+                        .transform;
+                    if (isValidStr(newTransform)) {
+                        dockActive = true;
+                        rootId = lastRootId;
+                    } else {
+                        dockActive = false;
+                    }
+                }
+            });
+        });
+
+        mobileSidebarObserver.observe(sidebarElement, { attributes: true });
+    }
+
+    function destroyObserver() {
+        if (mobileSidebarObserver) {
+            mobileSidebarObserver.disconnect();
         }
     }
 </script>

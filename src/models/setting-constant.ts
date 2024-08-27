@@ -13,8 +13,8 @@ export function getSettingTabArray(): TabProperty[] {
                 new ItemProperty({ key: "filterPanelViewExpand", type: "switch", name: "默认展开筛选面板", description: "", tips: "" }),
 
                 new ItemProperty({ key: "queryParentDefBlock", type: "switch", name: "查询父级关联定义块", description: "", tips: "" }),
-                new ItemProperty({ key: "querrChildDefBlockForListItem", type: "switch", name: "查询列表项下关联定义块", description: "如果反链块的父级是列表项块，则查询该列表项块底下的所有关联定义块", tips: "" }),
-                new ItemProperty({ key: "queryChildDefBlockForHeadline", type: "switch", name: "查询标题下关联定义块", description: "如果反链块是标题块，则查询标题下的所有关联定义块", tips: "" }),
+                new ItemProperty({ key: "querrChildDefBlockForListItem", type: "switch", name: "查询列表项下关联定义块", description: "如果反链块的父级是列表项块，则查询该列表项块底下的所有定义块", tips: "" }),
+                new ItemProperty({ key: "queryChildDefBlockForHeadline", type: "switch", name: "查询标题下关联定义块", description: "如果反链块是标题块，则查询标题下的所有定义块", tips: "" }),
 
                 new ItemProperty({ key: "filterPanelCurDocDefBlockSortMethod", type: "select", name: "当前文档定义块排序方式", description: "", tips: "", options: geturDocDefBlockSortMethodElement() }),
                 new ItemProperty({ key: "filterPanelRelatedDefBlockSortMethod", type: "select", name: "关联定义块排序方式", description: "", tips: "", options: getRelatedDefBlockSortMethodElement() }),
@@ -47,7 +47,7 @@ export function getSettingTabArray(): TabProperty[] {
                 new ItemProperty({ key: "cacheAfterResponseMs", type: "number", name: "启用缓存门槛（毫秒）", description: "当接口响应时间超过这个数，就会把这次查询结果存入缓存，-1 不开启缓存", tips: "", min: -1 }),
                 new ItemProperty({ key: "cacheExpirationTime", type: "number", name: "缓存过期时间（秒）", description: "", tips: "缓存数据失效时间", min: -1, }),
                 // new ConfigProperty({ key: "usePraentIdIdx", type: "switch", name: "使用索引", description: "", tips: "" }),
-
+                new ItemProperty({ key: "doubleClickTimeout", type: "number", name: "双击时间阈值(毫秒)", description: "", tips: "", min: 0, }),
             ]
         }),
     );

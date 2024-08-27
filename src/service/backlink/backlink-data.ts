@@ -1,12 +1,11 @@
-import { sql, getBatchBlockIdIndex, getBacklinkDoc } from "@/utils/api";
-import { generateGetParentDefBlockArraySql, generateGetBacklinkListItemBlockArraySql, generateGetDefBlockArraySql as generateGetDocDefBlockArraySql, generateGetBlockArraySql, generateGetParenListItemtDefBlockArraySql, generateGetChildDefBlockArraySql, generateGetBacklinkBlockArraySql } from "./backlink-sql";
-import { IBacklinkFilterPanelData, IBacklinkBlockQueryParams, IBacklinkBlockNode, IBacklinkFilterPanelDataQueryParams, IPanelRenderBacklinkQueryParams, IBacklinkPanelRenderData } from "@/models/backlink-model";
-import { getObjectSizeInKB } from "@/utils/object-util";
-import { containsAllKeywords, countOccurrences, isValidStr, longestCommonSubstring, splitKeywordStringToArray } from "@/utils/string-util";
-import { getLastItem, isArrayEmpty, isSetNotEmpty, paginate } from "@/utils/array-util";
+import { sql, getBatchBlockIdIndex, getBacklinkDoc, getBacklink2 } from "@/utils/api";
+import { generateGetParentDefBlockArraySql, generateGetBacklinkListItemBlockArraySql, generateGetDefBlockArraySql as generateGetDocDefBlockArraySql, generateGetBlockArraySql, generateGetParenListItemtDefBlockArraySql, generateGetHeadlineChildDefBlockArraySql, generateGetBacklinkBlockArraySql, generateGetListItemChildBlockArraySql, generateGetListItemtSubMarkdownArraySql } from "./backlink-sql";
+import { IBacklinkFilterPanelData, IBacklinkBlockQueryParams, IBacklinkBlockNode, IBacklinkFilterPanelDataQueryParams, IPanelRenderBacklinkQueryParams, IBacklinkPanelRenderData, ListItemTreeNode } from "@/models/backlink-model";
+import { containsAllKeywords, countOccurrences, isNotValidStr, isValidStr, longestCommonSubstring, splitKeywordStringToArray } from "@/utils/string-util";
+import { getLastItem, intersectionSet, isArrayEmpty, isArrayNotEmpty, isSetEmpty, isSetNotEmpty, paginate } from "@/utils/array-util";
 import { DefinitionBlockStatus } from "@/models/backlink-constant";
 import { CacheManager } from "@/config/CacheManager";
-import { SettingService } from "./setting/SettingService";
+import { SettingService } from "../setting/SettingService";
 
 
 
@@ -43,7 +42,7 @@ export async function getBacklinkPanelRenderData(
 
     backlinkBlockNodeArraySort(validBacklinkBlockNodeArray, queryParams.backlinkBlockSortMethod);
     let pageBacklinkBlockArray = paginate(validBacklinkBlockNodeArray, pageNum, pageSize);
-    let backlinkCacheData: IBacklinkCacheData = await batchGetBacklinkDoc(rootId, pageBacklinkBlockArray);
+    let backlinkCacheData: IBacklinkCacheData = await getBatchBacklinkDoc(rootId, pageBacklinkBlockArray);
     // highlightBacklinkContent(backlinkCacheData.backlinks, queryParams.keywordStr);
 
     let backlinkDataArray = backlinkCacheData.backlinks;
@@ -84,7 +83,8 @@ export async function getBacklinkPanelRenderData(
     const endTime = performance.now(); // 记录结束时间
     const executionTime = endTime - startTime; // 计算时间差
     console.log(
-        `反链面板 生成渲染数据 : ${executionTime} ms, 内容大小 : ${getObjectSizeInKB(backlinkPanelRenderDataResult)}`,
+        `反链面板 生成渲染数据 消耗时间 : ${executionTime} ms `,
+        // `, backlinkPanelRenderDataResult `, backlinkPanelRenderDataResult,
     );
 
     return backlinkPanelRenderDataResult;
@@ -96,6 +96,7 @@ export async function getTurnPageBacklinkPanelRenderData(
     validBacklinkBlockNodeArray: IBacklinkBlockNode[],
     queryParams: IPanelRenderBacklinkQueryParams,
 ): Promise<IBacklinkPanelRenderData> {
+    const startTime = performance.now(); // 记录开始时间
     let pageNum = queryParams.pageNum;
     let pageSize = SettingService.ins.SettingConfig.pageSize;
     let totalPage = calculateTotalPages(validBacklinkBlockNodeArray.length, pageSize);
@@ -108,7 +109,7 @@ export async function getTurnPageBacklinkPanelRenderData(
 
     backlinkBlockNodeArraySort(validBacklinkBlockNodeArray, queryParams.backlinkBlockSortMethod);
     let pageBacklinkBlockArray = paginate(validBacklinkBlockNodeArray, pageNum, pageSize);
-    let backlinkCacheData: IBacklinkCacheData = await batchGetBacklinkDoc(rootId, pageBacklinkBlockArray);
+    let backlinkCacheData: IBacklinkCacheData = await getBatchBacklinkDoc(rootId, pageBacklinkBlockArray);
     // highlightBacklinkContent(backlinkCacheData.backlinks, queryParams.keywordStr);
 
     let backlinkDataArray = backlinkCacheData.backlinks;
@@ -125,6 +126,13 @@ export async function getTurnPageBacklinkPanelRenderData(
         totalPage,
         usedCache,
     };
+    const endTime = performance.now(); // 记录结束时间
+    const executionTime = endTime - startTime; // 计算时间差
+    console.log(
+        `反链面板 翻页 消耗时间 : ${executionTime} ms `,
+        // `, backlinkPanelRenderDataResult `, backlinkPanelRenderDataResult,
+    );
+
     return backlinkPanelRenderDataResult;
 }
 
@@ -139,22 +147,34 @@ function cleanInvalidQueryParams(
 
     let relatedDefBlockIds = getBlockIds([...backlinkPanelData.curDocDefBlockArray, ...backlinkPanelData.relatedDefBlockArray]);
     let backlinkDocumentIds = getBlockIds(backlinkPanelData.backlinkDocumentArray);
+    let backlinkBlockNodeArray = backlinkPanelData.backlinkBlockNodeArray;
 
-
+    if (!queryParams.includeRelatedDefBlockIds || !(queryParams.includeRelatedDefBlockIds instanceof Set)) {
+        queryParams.includeRelatedDefBlockIds = new Set();
+    }
     for (const defBlockId of queryParams.includeRelatedDefBlockIds) {
         if (!relatedDefBlockIds.includes(defBlockId)) {
             invalidDefBlockId.add(defBlockId);
         }
+    }
+    if (!queryParams.excludeRelatedDefBlockIds || !(queryParams.excludeRelatedDefBlockIds instanceof Set)) {
+        queryParams.excludeRelatedDefBlockIds = new Set();
     }
     for (const defBlockId of queryParams.excludeRelatedDefBlockIds) {
         if (!relatedDefBlockIds.includes(defBlockId)) {
             invalidDefBlockId.add(defBlockId);
         }
     }
+    if (!queryParams.includeDocumentIds || !(queryParams.includeDocumentIds instanceof Set)) {
+        queryParams.includeDocumentIds = new Set();
+    }
     for (const defBlockId of queryParams.includeDocumentIds) {
         if (!backlinkDocumentIds.includes(defBlockId)) {
             invalidDocumentId.add(defBlockId);
         }
+    }
+    if (!queryParams.excludeDocumentIds || !(queryParams.excludeDocumentIds instanceof Set)) {
+        queryParams.excludeDocumentIds = new Set();
     }
     for (const defBlockId of queryParams.excludeDocumentIds) {
         if (!backlinkDocumentIds.includes(defBlockId)) {
@@ -171,6 +191,13 @@ function cleanInvalidQueryParams(
         queryParams.excludeDocumentIds.delete(blockId);
     }
 
+    for (const node of backlinkBlockNodeArray) {
+        if (node.parentListItemTreeNode) {
+            node.parentListItemTreeNode.includeChildIdArray = null;
+            node.parentListItemTreeNode.excludeChildIdArray = null;
+        }
+    }
+
 }
 
 function filterExistingDefBlocks(
@@ -182,8 +209,19 @@ function filterExistingDefBlocks(
     let validDefBlockIdSet: Set<string> = new Set();
     let validDefBlockCountMap: Map<string, number> = new Map<string, number>();
     for (const backlinkBlockNode of validBacklinkBlockNodeArray) {
-        let includeRelatedDefBlockIds = backlinkBlockNode.includeRelatedDefBlockIds;
-        for (const blockId of includeRelatedDefBlockIds) {
+        let verifyRelateDefBlockIds = backlinkBlockNode.includeRelatedDefBlockIds;
+        let parentListItemTreeNode = backlinkBlockNode.parentListItemTreeNode;
+        if (parentListItemTreeNode) {
+            verifyRelateDefBlockIds.clear();
+            backlinkBlockNode.includeCurBlockDefBlockIds.forEach((defBlockId) => verifyRelateDefBlockIds.add(defBlockId));
+            backlinkBlockNode.includeParentDefBlockIds.forEach((defBlockId) => verifyRelateDefBlockIds.add(defBlockId));
+            // parentListItemTreeNode.includeDefBlockIds.forEach((defBlockId) => verifyRelateDefBlockIds.add(defBlockId));
+            let listItemDefBLockIdArray = parentListItemTreeNode
+                .getFilterDefBlockIds(parentListItemTreeNode.includeChildIdArray, parentListItemTreeNode.excludeChildIdArray);
+            listItemDefBLockIdArray.forEach((defBlockId) => verifyRelateDefBlockIds.add(defBlockId));
+        }
+
+        for (const blockId of verifyRelateDefBlockIds) {
             // 这一步主要是为了区分当前文档定义块和关联定义块.
             if (!existingDefBlockIdMap.has(blockId)) {
                 continue;
@@ -292,23 +330,23 @@ function filterBacklinkDocumentBlocks(
     return validDocBlockArray;
 }
 
-async function batchGetBacklinkDoc(
+async function getBatchBacklinkDoc(
     curRootId: string,
     backlinkBlockNodeArray: IBacklinkBlockNode[],
 ): Promise<IBacklinkCacheData> {
-    let defId = curRootId;
-    let refTreeIdSet: Set<string> = new Set<string>();
-    let refTreeIdKeyWorldMap = new Map<string, string>();
-    // let refTreeIdDefIdsMap = new Map<string, string[]>();
+    const startTime = performance.now(); // 记录开始时间
+    // 等后续接口修改了，多穿一个 containChildren 参数。
+    const defIdRefTreeIdKeywordMap = new Map<string, string>();
     const backlinkBlockIdOrderMap = new Map<string, number>();
-    const backlinkBlockMap = new Map<string, DefBlock>();
+    const backlinkBlockNodeMap = new Map<string, IBacklinkBlockNode>();
     for (const [index, node] of backlinkBlockNodeArray.entries()) {
         let backlinkRootId = node.block.root_id;
-        refTreeIdSet.add(backlinkRootId);
         // 提取反链块中的共同关键字
         let backlinkContent = node.block.content;
-        let keyword = refTreeIdKeyWorldMap.get(backlinkRootId);
-        // keyword = "";
+        let defId = intersectionSet(node.includeCurBlockDefBlockIds, node.includeDirectDefBlockIds)[0];
+        // let defId = node.includeCurBlockDefBlockIds.values().next().value;
+        let mapKey = defId + "<->" + backlinkRootId;
+        let keyword = defIdRefTreeIdKeywordMap.get(mapKey);
         if (keyword === undefined) {
             keyword = backlinkContent;
         } else {
@@ -316,22 +354,25 @@ async function batchGetBacklinkDoc(
             // 单引号无法查询 "'" ，在查询的时候过滤吧。
             keyword = longestCommonSubstring(keyword, backlinkContent);
         }
-        refTreeIdKeyWorldMap.set(backlinkRootId, keyword);
+        defIdRefTreeIdKeywordMap.set(mapKey, keyword);
 
         backlinkBlockIdOrderMap.set(node.block.id, index);
         backlinkBlockIdOrderMap.set(node.block.parent_id, index - 0.1);
-        backlinkBlockMap.set(node.block.id, node.block);
-        backlinkBlockMap.set(node.block.parent_id, node.block);
+        backlinkBlockNodeMap.set(node.block.id, node);
+        backlinkBlockNodeMap.set(node.block.parent_id, node);
     }
 
     let usedCache = false;
     // 并发查询所有反链文档信息
     const allBacklinksArray: IBacklinkData[] = (
         await Promise.all(
-            Array.from(refTreeIdKeyWorldMap.keys()).map(
-                async (refTreeID) => {
-                    let keyword = refTreeIdKeyWorldMap.get(refTreeID);
-                    let data = await getBacklinkDocByApiOrCache(defId, refTreeID, keyword)
+            Array.from(defIdRefTreeIdKeywordMap.keys()).map(
+                async (key) => {
+                    let keySplit = key.split("<->");
+                    let defId = keySplit[0];
+                    let refTreeId = keySplit[1];
+                    let keyword = defIdRefTreeIdKeywordMap.get(key);
+                    let data = await getBacklinkDocByApiOrCache(curRootId, defId, refTreeId, keyword, false)
                     if (data.usedCache) {
                         usedCache = true;
                     }
@@ -348,11 +389,15 @@ async function batchGetBacklinkDoc(
         if (backlinkDcoDataMap.has(lastBreadcrumbId)) {
             continue;
         }
-        let backlinkBlockInfo: DefBlock = backlinkBlockMap.get(lastBreadcrumbId);
-        if (backlinkBlockInfo) {
+        let backlinkBlockNode: IBacklinkBlockNode = backlinkBlockNodeMap.get(lastBreadcrumbId);
+        if (backlinkBlockNode) {
             backlink.dom = backlink.dom.replace(/search-mark/g, "");
-            backlink.backlinkBlock = backlinkBlockInfo;
+            backlink.backlinkBlock = backlinkBlockNode.block;
             backlinkDcoDataMap.set(lastBreadcrumbId, backlink)
+            if (backlinkBlockNode.parentListItemTreeNode) {
+                backlink.includeChildListItemIdArray = backlinkBlockNode.parentListItemTreeNode.includeChildIdArray;
+                backlink.excludeChildLisetItemIdArray = backlinkBlockNode.parentListItemTreeNode.excludeChildIdArray;
+            }
         }
     }
     let backlinkDcoDataResult: IBacklinkData[] = Array.from(backlinkDcoDataMap.values());
@@ -370,33 +415,30 @@ async function batchGetBacklinkDoc(
         return indexA - indexB;
     });
 
+    // 碰到一种奇怪的现象， getBacklinkDoc 接口返回数据不全时，调用一下 getBacklink2 就好了。。
+    if (backlinkBlockNodeArray.length > backlinkDcoDataResult.length) {
+        console.log("反链过滤面板插件 疑似 getBacklinkDoc 接口数据不全，如果清除缓存刷新后还是不全，请反馈开发者。 ");
+        console.log("backlinkBlockNodeArray ", backlinkBlockNodeArray, " ,backlinkDcoDataResult ", backlinkDcoDataResult);
+        getBacklink2(curRootId, "", "h8JmZ3lWpR4Tnh8JmZ3", "3", "3")
+    }
+
     let result: IBacklinkCacheData = { backlinks: backlinkDcoDataResult, usedCache: usedCache };
 
+    const endTime = performance.now(); // 记录结束时间
+    const executionTime = endTime - startTime; // 计算时间差
+    // console.log(
+    //     `反链面板 批量获取反链文档信息 消耗时间 : ${executionTime} ms `,
+    // );
     return result;
 }
 
-// 使用标签进行高亮，需要判断是否存在 span 标签，如果在 span 标签中，要进行分割，不能直接嵌套。太复杂了，放弃。
-function highlightBacklinkContent(backlinkArray: IBacklinkData[], keywordStr: string) {
-    if (!isValidStr(keywordStr)) {
-        return;
-    }
-    let keywordArray = splitKeywordStringToArray(keywordStr);
-    if (isArrayEmpty(keywordArray)) {
-        return;
-    }
-    for (const backlink of backlinkArray) {
-        console.log("highlightBacklinkContent before ", backlink.dom)
-        // backlink.dom = highlightContent(backlink.dom, keywordArray);
-        console.log("highlightBacklinkContent after ", backlink.dom)
-    }
-}
 
 async function getBacklinkDocByApiOrCache(
-    defId: string, refTreeID: string, keyword: string
+    rootId: string, defId: string, refTreeId: string, keyword: string, containChildren: boolean
 ): Promise<IBacklinkCacheData> {
     keyword = formatBacklinkDocApiKeyword(keyword);
 
-    let backlinks = CacheManager.ins.getBacklinkDocApiData(defId, refTreeID, keyword);;
+    let backlinks = CacheManager.ins.getBacklinkDocApiData(rootId, defId, refTreeId, keyword);;
     let result: IBacklinkCacheData = { backlinks: backlinks, usedCache: false };
     if (backlinks) {
         result.usedCache = true;
@@ -404,7 +446,7 @@ async function getBacklinkDocByApiOrCache(
     }
     const startTime = performance.now(); // 记录开始时间
     const data: { backlinks: IBacklinkData[] } =
-        await getBacklinkDoc(defId, refTreeID, keyword);
+        await getBacklinkDoc(defId, refTreeId, keyword, containChildren);
     backlinks = data.backlinks;
     const endTime = performance.now(); // 记录结束时间
     const executionTime = endTime - startTime; // 计算时间差
@@ -415,7 +457,7 @@ async function getBacklinkDocByApiOrCache(
     if (cacheAfterResponseMs >= 0
         && cacheExpirationTime >= 0
         && executionTime > cacheAfterResponseMs) {
-        CacheManager.ins.setBacklinkDocApiData(defId, refTreeID, keyword, data.backlinks, cacheExpirationTime);
+        CacheManager.ins.setBacklinkDocApiData(defId, refTreeId, keyword, data.backlinks, cacheExpirationTime);
     }
 
     result.backlinks = backlinks;
@@ -424,7 +466,7 @@ async function getBacklinkDocByApiOrCache(
 }
 
 function formatBacklinkDocApiKeyword(keyword: string): string {
-    if (!isValidStr(keyword)) {
+    if (isNotValidStr(keyword)) {
         return "";
     }
     let keywordSplitArray = keyword.split("'");
@@ -436,9 +478,7 @@ function formatBacklinkDocApiKeyword(keyword: string): string {
             longestSubstring = substring;
         }
     }
-    if (longestSubstring.length > 100) {
-        longestSubstring = longestSubstring.substring(0, 50);
-    }
+    longestSubstring = longestSubstring.substring(0, 80);
     // 返回最长的子字符串
     return longestSubstring;
 
@@ -458,11 +498,14 @@ function isBacklinkBlockValid(
     let backlinkCurDocDefBlockType = queryParams.backlinkCurDocDefBlockType;
 
     let backlinkBlockInfo = backlinkBlockNode.block;
-    let backlinkConcatContent = backlinkBlockNode.concatContent;
     let backlinkDirectDefBlockIds = backlinkBlockNode.includeDirectDefBlockIds;
     let backlinkRelatedDefBlockIds = backlinkBlockNode.includeRelatedDefBlockIds;
+    let backlinkParentDefBlockIds = backlinkBlockNode.includeParentDefBlockIds;
+    let parentListItemTreeNode = backlinkBlockNode.parentListItemTreeNode;
+
     let dynamicAnchorMap = backlinkBlockNode.dynamicAnchorMap;
     let staticAnchorMap = backlinkBlockNode.staticAnchorMap;
+
     if (isSetNotEmpty(includeDocumentIds)
         && !includeDocumentIds.has(backlinkBlockInfo.root_id)
     ) {
@@ -473,23 +516,47 @@ function isBacklinkBlockValid(
     ) {
         return false;
     }
-    if (isSetNotEmpty(includeRelatedDefBlockIds)) {
-        for (const defBlockIds of includeRelatedDefBlockIds) {
-            if (!backlinkRelatedDefBlockIds.has(defBlockIds)) {
-                return false;
-            }
-        }
-    }
     if (isSetNotEmpty(excludeRelatedDefBlockIds)) {
-        for (const defBlockIds of excludeRelatedDefBlockIds) {
-            if (backlinkRelatedDefBlockIds.has(defBlockIds)) {
+        if (parentListItemTreeNode) {
+            let excludeItemIdArray = parentListItemTreeNode.resetExcludeItemIdArray([...backlinkParentDefBlockIds], Array.from(excludeRelatedDefBlockIds));
+            if (excludeItemIdArray.includes(parentListItemTreeNode.id)) {
                 return false;
+            }
+        } else {
+            for (const defBlockIds of excludeRelatedDefBlockIds) {
+                if (backlinkRelatedDefBlockIds.has(defBlockIds)) {
+                    return false;
+                }
             }
         }
     }
-    if (keywordStr) {
-        let keywordArray = splitKeywordStringToArray(keywordStr);
 
+    if (isSetNotEmpty(includeRelatedDefBlockIds)) {
+        if (parentListItemTreeNode) {
+            let includeItemIdArray = parentListItemTreeNode.resetIncludeItemIdArray([...backlinkParentDefBlockIds], Array.from(includeRelatedDefBlockIds));
+            if (!includeItemIdArray.includes(parentListItemTreeNode.id)) {
+                return false;
+            }
+        } else {
+            for (const defBlockIds of includeRelatedDefBlockIds) {
+                if (!backlinkRelatedDefBlockIds.has(defBlockIds)) {
+                    return false;
+                }
+            }
+        }
+    }
+
+    if (keywordStr) {
+        let keywordArray = splitKeywordStringToArray(keywordStr.toLowerCase());
+        let parentMarkdown = backlinkBlockNode.parentMarkdown;
+        let headlineChildMarkdown = backlinkBlockNode.headlineChildMarkdown;
+        let listItemChildMarkdown = "";
+        if (parentListItemTreeNode) {
+            listItemChildMarkdown = parentListItemTreeNode.getFilterMarkdown(parentListItemTreeNode.includeChildIdArray, parentListItemTreeNode.excludeChildIdArray);
+        }
+
+        let backlinkConcatContent = parentMarkdown + headlineChildMarkdown + listItemChildMarkdown;
+        backlinkConcatContent = removeMarkdownRefBlockStyle(backlinkConcatContent).toLowerCase();
         let containsAll = containsAllKeywords(backlinkConcatContent, keywordArray);
         if (!containsAll) {
             return false;
@@ -501,23 +568,31 @@ function isBacklinkBlockValid(
             if (dynamicAnchorMap.size <= 0) {
                 return false;
             } else {
+                let noDynamicAnchor = true;
                 for (const blockId of dynamicAnchorMap.keys()) {
                     if (backlinkDirectDefBlockIds.has(blockId)) {
-                        return true;
+                        noDynamicAnchor = false;
+                        break;
                     }
                 }
-                return false;
+                if (noDynamicAnchor) {
+                    return false;
+                }
             }
         } else if (backlinkCurDocDefBlockType == "staticAnchorText") {
             if (staticAnchorMap.size <= 0) {
                 return false;
             } else {
+                let noStaticAnchor = true;
                 for (const blockId of staticAnchorMap.keys()) {
                     if (backlinkDirectDefBlockIds.has(blockId)) {
-                        return true;
+                        noStaticAnchor = false;
+                        break;
                     }
                 }
-                return false;
+                if (noStaticAnchor) {
+                    return false;
+                }
             }
         }
     }
@@ -565,17 +640,32 @@ export async function getBacklinkPanelData(
     backlinkBlockQueryParams.backlinkBlocks = backlinkBlockArray;
     backlinkBlockQueryParams.backlinkBlockIds = getBlockIds(backlinkBlockArray);
 
+    // let [
+    //     backlinkParentBlockArray,
+    //     headlinkBacklinkChildBlockArray,
+    //     listItemBacklinkChildBlockArray
+    // ] = await Promise.all([
+    //     getParentBlockArray(backlinkBlockQueryParams),
+    //     getHeadlineChildBlockArray(backlinkBlockQueryParams),
+    //     getListItemChildBlockArray(backlinkBlockQueryParams)
+    // ]);
+
     let backlinkParentBlockArray: BacklinkParentBlock[] = await getParentBlockArray(backlinkBlockQueryParams);
 
-    let backlinkChildBlockArray: BacklinkChildBlock[] = await getHeadlineChildBlockArray(backlinkBlockQueryParams);
+    let headlinkBacklinkChildBlockArray: BacklinkChildBlock[] = await getHeadlineChildBlockArray(backlinkBlockQueryParams);
+
+    let listItemBacklinkChildBlockArray: BacklinkChildBlock[] = await getListItemChildBlockArray(backlinkBlockQueryParams);
 
 
-    let backlinkPanelData = await buildBacklinkPanelData({ curDocDefBlockArray, backlinkBlockArray, backlinkChildBlockArray, backlinkParentBlockArray });
+    let backlinkPanelData = await buildBacklinkPanelData({
+        curDocDefBlockArray, backlinkBlockArray, headlinkBacklinkChildBlockArray, listItemBacklinkChildBlockArray, backlinkParentBlockArray,
+    });
 
     const endTime = performance.now(); // 记录结束时间
     const executionTime = endTime - startTime; // 计算时间差
     console.log(
-        `反链面板 获取和处理数据消耗时间 : ${executionTime} ms`,
+        `反链面板 获取和处理数据 消耗时间 : ${executionTime} ms `,
+        // `, 数据 : backlinkPanelData `, backlinkPanelData
     );
     let cacheAfterResponseMs = SettingService.ins.SettingConfig.cacheAfterResponseMs;
     let cacheExpirationTime = SettingService.ins.SettingConfig.cacheExpirationTime;
@@ -609,11 +699,23 @@ async function getBacklinkBlockArray(queryParams: IBacklinkBlockQueryParams): Pr
 
 async function getHeadlineChildBlockArray(queryParams: IBacklinkBlockQueryParams)
     : Promise<BacklinkChildBlock[]> {
-    if (!queryParams || !queryParams.queryChildDefBlockForHeadline) {
+    if (!queryParams || !queryParams.queryChildDefBlockForHeadline
+        || isArrayEmpty(queryParams.backlinkBlocks)
+    ) {
         return [];
     }
 
-    let getHeadlineChildBlockSql = generateGetChildDefBlockArraySql(queryParams);
+    let headlineBacklinkIdArray = [];
+    for (const backlinkBlock of queryParams.backlinkBlocks) {
+        if (backlinkBlock.type == 'h') {
+            headlineBacklinkIdArray.push(backlinkBlock.id);
+        }
+    }
+    if (isArrayEmpty(headlineBacklinkIdArray)) {
+        return [];
+    }
+
+    let getHeadlineChildBlockSql = generateGetHeadlineChildDefBlockArraySql(queryParams);
     let headlineChildBlockArray: BacklinkChildBlock[] = await sql(getHeadlineChildBlockSql);
     headlineChildBlockArray = headlineChildBlockArray ? headlineChildBlockArray : [];
 
@@ -624,6 +726,60 @@ async function getHeadlineChildBlockArray(queryParams: IBacklinkBlockQueryParams
         }
     }
     return backlinkChildBlockArray;
+}
+
+
+async function getListItemChildBlockArray(queryParams: IBacklinkBlockQueryParams)
+    : Promise<BacklinkChildBlock[]> {
+    if (!queryParams || !queryParams.querrChildDefBlockForListItem) {
+        return [];
+    }
+    let backlinkParentListItemBlockIds = new Set<string>();
+    if (queryParams.backlinkBlocks) {
+        for (const backlinkBlock of queryParams.backlinkBlocks) {
+            if (backlinkBlock && backlinkBlock.parentBlockType == 'i') {
+                backlinkParentListItemBlockIds.add(backlinkBlock.parent_id);
+            }
+        }
+    }
+    if (isSetEmpty(backlinkParentListItemBlockIds)) {
+        return;
+    }
+    queryParams.backlinkParentListItemBlockIds = Array.from(backlinkParentListItemBlockIds);
+
+    let getHeadlineChildBlockSql = generateGetListItemChildBlockArraySql(queryParams);
+    let listItemChildBlockArray: BacklinkChildBlock[] = await sql(getHeadlineChildBlockSql);
+
+    if (listItemChildBlockArray) {
+        let listItemIdSet = new Set<string>();
+        for (const itemBlock of listItemChildBlockArray) {
+            if (itemBlock.type == 'i') {
+                listItemIdSet.add(itemBlock.id)
+            }
+        }
+        let getSubMarkdownSql = generateGetListItemtSubMarkdownArraySql(Array.from(listItemIdSet));
+        if (isValidStr(getSubMarkdownSql)) {
+            let subMarkdownArray: BacklinkChildBlock[] = await sql(getSubMarkdownSql);
+            subMarkdownArray = subMarkdownArray ? subMarkdownArray : [];
+            let subMarkdownMap = new Map<string, string>();
+            for (const parentListItemBlock of subMarkdownArray) {
+                subMarkdownMap.set(parentListItemBlock.parent_id, parentListItemBlock.subMarkdown);
+            }
+            for (const itemBlock of listItemChildBlockArray) {
+                if (itemBlock.type == 'i') {
+                    let subMarkdown = subMarkdownMap.get(itemBlock.id);
+                    if (subMarkdown) {
+                        itemBlock.subMarkdown = subMarkdown;
+                    }
+                }
+            }
+        }
+    }
+
+
+    listItemChildBlockArray = listItemChildBlockArray ? listItemChildBlockArray : [];
+
+    return listItemChildBlockArray;
 }
 
 async function getParentBlockArray(queryParams: IBacklinkBlockQueryParams)
@@ -647,7 +803,7 @@ async function getParentBlockArray(queryParams: IBacklinkBlockQueryParams)
         }
     }
     if (isSetNotEmpty(backlinkParentListItemBlockIdSet)) {
-        queryParams.backlinkParentBlockIds = Array.from(backlinkParentListItemBlockIdSet);
+        queryParams.backlinkAllParentBlockIds = Array.from(backlinkParentListItemBlockIdSet);
         let getSubMarkdownSql = generateGetParenListItemtDefBlockArraySql(queryParams);
         let subMarkdownArray: BacklinkParentBlock[] = await sql(getSubMarkdownSql);
         subMarkdownArray = subMarkdownArray ? subMarkdownArray : [];
@@ -690,7 +846,8 @@ async function buildBacklinkPanelData(
     paramObj: {
         curDocDefBlockArray: DefBlock[],
         backlinkBlockArray: BacklinkBlock[],
-        backlinkChildBlockArray: BacklinkChildBlock[],
+        headlinkBacklinkChildBlockArray: BacklinkChildBlock[],
+        listItemBacklinkChildBlockArray: BacklinkChildBlock[],
         backlinkParentBlockArray: BacklinkParentBlock[],
     }
 ): Promise<IBacklinkFilterPanelData> {
@@ -710,21 +867,26 @@ async function buildBacklinkPanelData(
         let backlinkBlockNode: IBacklinkBlockNode = {
             block: { ...backlinkBlock, refCount: null },
             documentBlock: null,
-            concatContent: "",
+            parentMarkdown: "",
+            listItemChildMarkdown: "",
+            headlineChildMarkdown: "",
             includeDirectDefBlockIds: new Set<string>(),
             includeRelatedDefBlockIds: new Set<string>(),
+            includeCurBlockDefBlockIds: new Set<string>(),
+            // includeChildDefBlockIds: new Set<string>(),
+            includeParentDefBlockIds: new Set<string>(),
             dynamicAnchorMap: new Map<string, Set<string>>(),
             staticAnchorMap: new Map<string, Set<string>>(),
         };
         let markdown = backlinkBlock.markdown;
-        let content = backlinkBlock.content;
-        if (backlinkBlock.parentBlockType == 'i' && backlinkBlock.parentListItemMarkdown) {
-            markdown = backlinkBlock.parentListItemMarkdown;
-            content = backlinkBlock.parentListItemMarkdown;
-        }
+        // if (backlinkBlock.parentBlockType == 'i' && backlinkBlock.parentListItemMarkdown) {
+        //     markdown = backlinkBlock.parentListItemMarkdown;
+        //     content = backlinkBlock.parentListItemMarkdown;
+        // }
         let relatedDefBlockIdArray = getRefBlockId(markdown);
         for (const relatedDefBlockId of relatedDefBlockIdArray) {
             backlinkBlockNode.includeRelatedDefBlockIds.add(relatedDefBlockId)
+            backlinkBlockNode.includeCurBlockDefBlockIds.add(relatedDefBlockId)
             if (defBlockIdArray.includes(relatedDefBlockId)) {
                 backlinkBlockNode.includeDirectDefBlockIds.add(relatedDefBlockId);
             } else {
@@ -732,16 +894,15 @@ async function buildBacklinkPanelData(
                 updateMaxValueMap(backlinkBlockUpdatedMap, relatedDefBlockId, backlinkBlock.updated);
                 updateMapCount(relatedDefBlockCountMap, relatedDefBlockId);
             }
-
         }
-        updateDynamicAnchorMap(backlinkBlockNode.dynamicAnchorMap, backlinkBlock.markdown);
-        updateStaticAnchorMap(backlinkBlockNode.staticAnchorMap, backlinkBlock.markdown);
 
-        backlinkBlockNode.concatContent += content;
+        // updateDynamicAnchorMap(backlinkBlockNode.dynamicAnchorMap, backlinkBlock.markdown);
+        // updateStaticAnchorMap(backlinkBlockNode.staticAnchorMap, backlinkBlock.markdown);
+
         updateMaxValueMap(backlinkBlockCreatedMap, backlinkBlock.root_id, backlinkBlock.created);
         updateMaxValueMap(backlinkBlockUpdatedMap, backlinkBlock.root_id, backlinkBlock.updated);
         updateMapCount(backlinkDocumentCountMap, backlinkBlock.root_id);
-        // 更新所有关联块的静态锚文本
+        // 更新所有关联块的动静态锚文本
         updateDynamicAnchorMap(relatedDefBlockDynamicAnchorMap, markdown);
         updateStaticAnchorMap(relatedDefBlockStaticAnchorMap, markdown);
         backlinkBlockMap[backlinkBlockNode.block.id] = backlinkBlockNode;
@@ -749,7 +910,7 @@ async function buildBacklinkPanelData(
     // 这里必须再生成一个关联块ID Set，用来区分下面父级关联块 markdown 中存在该关联块，防止set里的关联块重新计数
     let relatedDefBlockIdSet = new Set(relatedDefBlockCountMap.keys());
 
-    for (const childBlock of paramObj.backlinkChildBlockArray) {
+    for (const childBlock of paramObj.headlinkBacklinkChildBlockArray) {
         let markdown = childBlock.markdown;
         let backlnikChildDefBlockIdArray = getRefBlockId(markdown);
         let backlinkBlockId = childBlock.parentIdPath.split("->")[0];
@@ -757,18 +918,60 @@ async function buildBacklinkPanelData(
         if (backlinkBlockNode) {
             for (const childDefBlockId of backlnikChildDefBlockIdArray) {
                 backlinkBlockNode.includeRelatedDefBlockIds.add(childDefBlockId);
+                // backlinkBlockNode.includeChildDefBlockIds.add((childDefBlockId))
                 if (defBlockIdArray.includes(childDefBlockId)) {
                     backlinkBlockNode.includeDirectDefBlockIds.add(childDefBlockId);
                 } else if (!relatedDefBlockIdSet.has(childDefBlockId)) {
+                    updateMaxValueMap(backlinkBlockCreatedMap, childDefBlockId, backlinkBlockNode.block.created);
+                    updateMaxValueMap(backlinkBlockUpdatedMap, childDefBlockId, backlinkBlockNode.block.updated);
                     updateMapCount(relatedDefBlockCountMap, childDefBlockId);
                 }
             }
-            backlinkBlockNode.concatContent += markdown;
+            backlinkBlockNode.headlineChildMarkdown += markdown;
             updateDynamicAnchorMap(relatedDefBlockDynamicAnchorMap, markdown);
             updateStaticAnchorMap(relatedDefBlockStaticAnchorMap, markdown);
         }
     }
 
+
+    if (isArrayNotEmpty(paramObj.listItemBacklinkChildBlockArray)) {
+        let listItemTreeNodeArray = ListItemTreeNode.buildTree(paramObj.listItemBacklinkChildBlockArray);
+        for (const treeNode of listItemTreeNodeArray) {
+            let listItemBlockId = treeNode.id;
+            let backlinkBlockNode: IBacklinkBlockNode;
+            for (const node of Object.values(backlinkBlockMap)) {
+                if (node.block.parent_id == listItemBlockId) {
+                    backlinkBlockNode = node
+                    break;
+                }
+            }
+            if (!backlinkBlockNode) {
+                continue;
+            }
+            backlinkBlockNode.parentListItemTreeNode = treeNode;
+            let backlinkBlock = backlinkBlockNode.block;
+            let markdown = treeNode.getAllMarkdown();
+            markdown = markdown.replace(backlinkBlock.markdown, " ");
+            let childDefBlockIdArray = getRefBlockId(markdown);
+
+            for (const childDefBlockId of childDefBlockIdArray) {
+                backlinkBlockNode.includeRelatedDefBlockIds.add(childDefBlockId)
+                // backlinkBlockNode.includeChildDefBlockIds.add(defBlockId);
+                if (defBlockIdArray.includes(childDefBlockId)) {
+                    backlinkBlockNode.includeDirectDefBlockIds.add(childDefBlockId);
+                } else {
+                    updateMaxValueMap(backlinkBlockCreatedMap, childDefBlockId, backlinkBlock.created);
+                    updateMaxValueMap(backlinkBlockUpdatedMap, childDefBlockId, backlinkBlock.updated);
+                    updateMapCount(relatedDefBlockCountMap, childDefBlockId);
+                }
+            }
+            updateMaxValueMap(backlinkBlockCreatedMap, backlinkBlock.root_id, backlinkBlock.created);
+            updateMaxValueMap(backlinkBlockUpdatedMap, backlinkBlock.root_id, backlinkBlock.updated);
+            updateMapCount(backlinkDocumentCountMap, backlinkBlock.root_id);
+            updateDynamicAnchorMap(relatedDefBlockDynamicAnchorMap, markdown);
+            updateStaticAnchorMap(relatedDefBlockStaticAnchorMap, markdown);
+        }
+    }
 
     for (const parentBlock of paramObj.backlinkParentBlockArray) {
         let markdown = parentBlock.markdown;
@@ -781,13 +984,14 @@ async function buildBacklinkPanelData(
         if (backlinkBlockNode) {
             for (const parentDefBlockId of backlnikParentDefBlockIdArray) {
                 backlinkBlockNode.includeRelatedDefBlockIds.add(parentDefBlockId);
+                backlinkBlockNode.includeParentDefBlockIds.add(parentDefBlockId);
                 if (defBlockIdArray.includes(parentDefBlockId)) {
                     backlinkBlockNode.includeDirectDefBlockIds.add(parentDefBlockId);
                 } else if (!relatedDefBlockIdSet.has(parentDefBlockId)) {
                     updateMapCount(relatedDefBlockCountMap, parentDefBlockId);
                 }
             }
-            backlinkBlockNode.concatContent += markdown;
+            backlinkBlockNode.parentMarkdown += markdown;
             updateDynamicAnchorMap(relatedDefBlockDynamicAnchorMap, markdown);
             updateStaticAnchorMap(relatedDefBlockStaticAnchorMap, markdown);
             // updateMapCount(backlinkDocumentCountMap, parentBlock.root_id);
@@ -880,7 +1084,7 @@ async function getBlockInfoMap(blockIds: string[]) {
 }
 
 
-function getRefBlockId(markdown: string): string[] {
+export function getRefBlockId(markdown: string): string[] {
     const matches = [];
     if (!markdown) {
         return matches;
@@ -896,16 +1100,7 @@ function getRefBlockId(markdown: string): string[] {
 }
 
 
-function getRootBlockIdArray(blockTreeNodeArray: IBacklinkBlockNode[]) {
-    let rootBlockIdArray = [];
-    if (!blockTreeNodeArray) {
-        return rootBlockIdArray;
-    }
-    for (const node of blockTreeNodeArray) {
-        rootBlockIdArray.push(node.block.id);
-    }
-    return rootBlockIdArray;
-}
+
 
 
 async function backlinkBlockNodeArraySort(
@@ -1006,10 +1201,10 @@ export async function defBlockArrayTypeAndKeywordFilter(
 
     if (defBLockType) {
         for (const defBlock of defBlockArray) {
-            if (defBLockType == "dynamicAnchorText" && !isValidStr(defBlock.dynamicAnchor)) {
+            if (defBLockType == "dynamicAnchorText" && isNotValidStr(defBlock.dynamicAnchor)) {
                 console.log("dynamicAnchorText defBlock ", defBlock)
                 defBlock.filterStatus = true;
-            } else if (defBLockType == "staticAnchorText" && !isValidStr(defBlock.staticAnchor)) {
+            } else if (defBLockType == "staticAnchorText" && isNotValidStr(defBlock.staticAnchor)) {
                 console.log("staticAnchorText defBlock ", defBlock)
                 defBlock.filterStatus = true;
             }
@@ -1305,4 +1500,13 @@ function formatDefBlockMap(defBlockArray: DefBlock[])
     }
 
     return map;
+}
+
+function removeMarkdownRefBlockStyle(input) {
+
+    // regex = /\(\((\d{14}-\w{7})\s['"][^'"]+['"]\)\)/g;
+    const regex = /\(\(\d{14}-\w{7}\s['"]([^'"]+)['"]\)\)/g;
+
+    // 使用正则表达式替换匹配的字符串
+    return input.replace(regex, (_, p1) => p1);
 }

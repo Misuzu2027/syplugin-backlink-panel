@@ -28,7 +28,8 @@ export class SettingConfig {
     cacheAfterResponseMs: number;
     cacheExpirationTime: number;
     usePraentIdIdx: boolean;
-
+    // 双击阈值
+    doubleClickTimeout: number;
 
 }
 

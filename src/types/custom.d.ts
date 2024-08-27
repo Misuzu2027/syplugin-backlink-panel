@@ -7,6 +7,7 @@ type BacklinkParentBlock = DefBlock & {
 
 type BacklinkChildBlock = DefBlock & {
     parentIdPath: string;
+    subMarkdown: string;
 };
 
 

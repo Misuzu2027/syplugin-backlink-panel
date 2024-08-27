@@ -1,5 +1,4 @@
 import {
-    Menu,
     Plugin,
 } from "siyuan";
 import "@/index.scss";
@@ -9,8 +8,9 @@ import { EnvConfig } from "./config/EnvConfig";
 import { CUSTOM_ICON_MAP } from "./models/icon-constant";
 import { SettingService } from "./service/setting/SettingService";
 import { openSettingsDialog } from "./components/setting/setting-util";
-import { DocumentService } from "./components/document/DocumentService";
-import { DockService } from "./components/dock/DockServices";
+import { DocumentService } from "./service/plugin/DocumentService";
+import { DockService } from "./service/plugin/DockServices";
+import { TopBarService } from "./service/plugin/TopBarService";
 
 
 export default class PluginSample extends Plugin {
@@ -21,8 +21,9 @@ export default class PluginSample extends Plugin {
         await SettingService.ins.init()
         DocumentService.ins.init();
         DockService.ins.init();
+        TopBarService.ins.init();
 
-        
+
         // 图标的制作参见帮助文档
         for (const key in CUSTOM_ICON_MAP) {
             if (Object.prototype.hasOwnProperty.call(CUSTOM_ICON_MAP, key)) {

@@ -3,6 +3,7 @@ import { CUSTOM_ICON_MAP } from "@/models/icon-constant";
 import Instance from "@/utils/Instance";
 import BacklinkPanelDockSvelte from "@/components/dock/backlink-filter-panel-dock.svelte";
 import { SettingService } from "@/service/setting/SettingService";
+import { clearProtyleGutters } from "@/utils/html-util";
 
 const BACKLINK_PANEL_DOCK_TYPE = "backlink-panel-dock";
 export class DockService {
@@ -57,6 +58,12 @@ function addBacklinkPanelDock() {
                 props: {
                 }
             });
+            this.element.addEventListener(
+                "scroll",
+                () => {
+                    clearProtyleGutters(this.element);
+                },
+            );
 
             if (EnvConfig.ins.isMobile) {
                 docSearchSvelet.resize(1);

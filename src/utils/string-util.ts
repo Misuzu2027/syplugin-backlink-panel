@@ -90,6 +90,11 @@ export function isValidStr(s: any): boolean {
     return true;
 }
 
+export function isNotValidStr(s: any): boolean {
+    return !isValidStr(s);
+}
+
+
 export function splitKeywordStringToArray(keywordStr: string): string[] {
     let keywordArray = [];
     if (!isValidStr(keywordStr)) {

@@ -13,7 +13,7 @@ const log = (info) => console.log(`\x1B[36m%s\x1B[0m`, info);
 const error = (info) => console.log(`\x1B[31m%s\x1B[0m`, info);
 
 let POST_HEADER = {
-    // "Authorization": `Token ${token}`,
+    "Authorization": ``,
     "Content-Type": "application/json",
 }
 

@@ -20,8 +20,13 @@
         getBacklinkPanelData,
         getBacklinkPanelRenderData,
         getTurnPageBacklinkPanelRenderData,
-    } from "@/service/backlink-data";
-    import { isArrayEmpty, isArrayNotEmpty } from "@/utils/array-util";
+    } from "@/service/backlink/backlink-data";
+    import {
+        isArrayEmpty,
+        isArrayNotEmpty,
+        isSetEmpty,
+        isSetNotEmpty,
+    } from "@/utils/array-util";
     import {
         clearProtyleGutters,
         getElementsBeforeDepth,
@@ -30,7 +35,7 @@
         syHasChildListNode,
     } from "@/utils/html-util";
     import {
-        isValidStr,
+        isNotValidStr,
         removePrefixAndSuffix,
         splitKeywordStringToArray,
     } from "@/utils/string-util";
@@ -59,7 +64,7 @@
     }
 
     /* 绑定 HTML 元素 */
-    let curRootElement: HTMLElement;
+    // let curRootElement: HTMLElement;
     let backlinkULElement: HTMLElement;
 
     /* 数据 */
@@ -71,7 +76,7 @@
 
     /* 全局使用 */
     let editors: Protyle[] = [];
-    let doubleClickTimeout: number = 1;
+    let doubleClickTimeout: number = 0;
     let clickCount: number = 0;
     let clickTimeoutId: NodeJS.Timeout;
     let inputChangeTimeoutId: NodeJS.Timeout;
@@ -91,7 +96,18 @@
     $: updateDefaultCriteria(queryParams, panelFilterViewExpand);
 
     onMount(async () => {
-        initData();
+        doubleClickTimeout =
+            SettingService.ins.SettingConfig.doubleClickTimeout;
+        if (!doubleClickTimeout) {
+            doubleClickTimeout = 0;
+        }
+        if (
+            rootId !== previousRootId ||
+            focusBlockId !== previousFocusBlockId
+        ) {
+            initData();
+        }
+
         initEvent();
     });
 
@@ -117,13 +133,6 @@
     }
 
     function initEvent() {
-        curRootElement.parentElement.parentElement.addEventListener(
-            "scroll",
-            () => {
-                clearProtyleGutters(backlinkULElement);
-            },
-        );
-
         backlinkULElement.addEventListener("mouseleave", () => {
             clearProtyleGutters(backlinkULElement);
         });
@@ -517,9 +526,12 @@
         let protyleWysiwygElement = editor.protyle.contentElement.querySelector(
             "div.protyle-wysiwyg.protyle-wysiwyg--attr",
         );
-        let foldItemElementArray = protyleWysiwygElement.querySelectorAll(
-            `div[data-type="NodeListItem"].li[fold="1"]`,
-        );
+        let foldItemElementArray = [];
+        if (protyleWysiwygElement) {
+            foldItemElementArray = protyleWysiwygElement.querySelectorAll(
+                `div[data-type="NodeListItem"].li[fold="1"]`,
+            );
+        }
         let foldSet = backlinkProtyleItemFoldMap.get(backlinkBlockId);
         if (!foldSet) {
             foldSet = new Set<string>();
@@ -608,7 +620,7 @@
         }, 0);
         let backlinkBlockId = backlinkData.backlinkBlock.id;
 
-        // 是否折叠反链
+        // 是否折叠反链文档
         if (backlinkDocumentFoldMap.get(backlinkBlockId) === true) {
             collapseBacklinkDocument(documentLiElement);
         }
@@ -627,6 +639,11 @@
                 );
             }
         }
+
+        // 主要防止手机端侧边栏上下滑动导致退回
+        protyleContentElement.addEventListener("touchend", (event) => {
+            event.stopPropagation();
+        });
     }
 
     function hideOtherListItemElement(
@@ -634,13 +651,14 @@
         protyle: Protyle,
     ) {
         // 因为之前筛选面板的设计没有考虑到选择一个关联定义块后，隐藏其他没有这个定义块的列表这个功能，所以这里隐藏了，筛选面板不会隐藏，暂时不处理
-        return;
+        // return;
         let protyleContentElement = protyle.protyle.contentElement;
 
         let inclucdeRelatedDefBlockIds = queryParams.includeRelatedDefBlockIds;
+        let excludeRelatedDefBlockIds = queryParams.excludeRelatedDefBlockIds;
         if (
-            !inclucdeRelatedDefBlockIds ||
-            inclucdeRelatedDefBlockIds.size <= 0
+            isSetEmpty(inclucdeRelatedDefBlockIds) &&
+            isSetEmpty(excludeRelatedDefBlockIds)
         ) {
             return;
         }
@@ -654,53 +672,84 @@
         ) {
             return;
         }
+        let includeChildListItemIdArray =
+            backlinkData.includeChildListItemIdArray;
+        let excludeChildLisetItemIdArray =
+            backlinkData.excludeChildLisetItemIdArray;
 
-        // 获取所有子列表项块
-        let allListItemElement = targetBlockParentElement.querySelectorAll(
-            `div[data-type="NodeListItem"]`,
-        );
-        // 先把所有列表项块隐藏
-        for (const itemElement of allListItemElement) {
-            itemElement.classList.add("fn__none");
-        }
-        // 遍历列表项节点，把符合条件的列表项节点显示出来：包含定义块的列表项块；定义块下的列表项块。
-        for (const itemElement of allListItemElement) {
-            if (!itemElement.classList.contains("fn__none")) {
-                continue;
-            }
-            for (const blockId of inclucdeRelatedDefBlockIds) {
-                let refBlockElement = itemElement.querySelector(
-                    `span[data-type="block-ref"][data-id="${blockId}"]`,
-                );
-                if (!refBlockElement) {
-                    continue;
-                }
-                itemElement.classList.remove("fn__none");
-                let refBlockParentItemElement =
-                    getParentListItemElement(refBlockElement);
-                if (refBlockParentItemElement) {
-                    let refBlockChildListItemElement =
-                        refBlockParentItemElement.querySelectorAll(
-                            `div[data-type="NodeListItem"]`,
-                        );
-                    for (const itemElement of refBlockChildListItemElement) {
-                        itemElement.classList.remove("fn__none");
-                    }
-                }
-            }
-        }
-    }
-
-    function getParentListItemElement(element: Element): Element {
-        let itemElement = element;
-        while (
-            itemElement &&
-            !itemElement.matches(`div[data-type="NodeListItem"]`)
+        if (
+            isSetNotEmpty(inclucdeRelatedDefBlockIds) &&
+            isArrayNotEmpty(includeChildListItemIdArray)
         ) {
-            itemElement = itemElement.parentElement;
+            // 获取所有子列表项块
+            let allListItemElement = targetBlockParentElement.querySelectorAll(
+                `div[data-type="NodeListItem"]`,
+            );
+            // 先把所有列表项块隐藏
+            for (const itemElement of allListItemElement) {
+                itemElement.classList.add("fn__none");
+            }
+            for (const itemId of includeChildListItemIdArray) {
+                let targetElement = targetBlockParentElement.querySelector(
+                    `div[data-type="NodeListItem"][data-node-id="${itemId}"]`,
+                );
+                if (targetElement) {
+                    targetElement.classList.remove("fn__none");
+                }
+            }
         }
-        return itemElement;
+        if (
+            isSetNotEmpty(excludeRelatedDefBlockIds) &&
+            isArrayNotEmpty(excludeChildLisetItemIdArray)
+        ) {
+            for (const itemId of excludeChildLisetItemIdArray) {
+                let targetElement = targetBlockParentElement.querySelector(
+                    `div[data-type="NodeListItem"][data-node-id="${itemId}"]`,
+                );
+                if (targetElement) {
+                    targetElement.classList.add("fn__none");
+                }
+            }
+        }
+
+        // 遍历列表项节点，把符合条件的列表项节点显示出来：包含定义块的列表项块；定义块下的列表项块。
+        // for (const itemElement of allListItemElement) {
+        // if (!itemElement.classList.contains("fn__none")) {
+        // continue;
+        // }
+        // for (const blockId of inclucdeRelatedDefBlockIds) {
+        // let refBlockElement = itemElement.querySelector(
+        // `span[data-type="block-ref"][data-id="${blockId}"]`,
+        // );
+        // if (!refBlockElement) {
+        // continue;
+        // }
+        // itemElement.classList.remove("fn__none");
+        // let refBlockParentItemElement =
+        // getParentListItemElement(refBlockElement);
+        // if (refBlockParentItemElement) {
+        // let refBlockChildListItemElement =
+        // refBlockParentItemElement.querySelectorAll(
+        // `div[data-type="NodeListItem"]`,
+        // );
+        // for (const itemElement of refBlockChildListItemElement) {
+        // itemElement.classList.remove("fn__none");
+        // }
+        // }
+        // }
+        // }
     }
+
+    //    function getParentListItemElement(element: Element): Element {
+    //        let itemElement = element;
+    //        while (
+    //            itemElement &&
+    //            !itemElement.matches(`div[data-type="NodeListItem"]`)
+    //        ) {
+    //            itemElement = itemElement.parentElement;
+    //        }
+    //        return itemElement;
+    //    }
 
     function createdDocumentLiElement(
         documentName: string,
@@ -729,8 +778,8 @@
 <span class="b3-list-item__text" class="ariaLabel" aria-label="${backlinkRootHpath}"  >
 ${documentName}
 </span>
-<svg class="b3-list-item__graphic counter ariaLabel expand-listitem-icon" aria-label="展开所有列表项"><use xlink:href="#LiElementExpand"></use></svg>
-<svg class="b3-list-item__graphic counter ariaLabel collapse-listitem-icon" aria-label="折叠所有列表项"><use xlink:href="#LiElementCollapse"></use></svg>
+<svg class="b3-list-item__graphic counter ariaLabel expand-listitem-icon" aria-label="展开所有列表项"><use xlink:href="#iconLiElementExpand"></use></svg>
+<svg class="b3-list-item__graphic counter ariaLabel collapse-listitem-icon" aria-label="折叠所有列表项"><use xlink:href="#iconLiElementCollapse"></use></svg>
 `;
         documentLiElement.addEventListener("click", (event: MouseEvent) => {
             clickBacklinkDocumentLiElement(event);
@@ -841,11 +890,15 @@ ${documentName}
     function handleRelatedDefBlockClick(event, defBlock: DefBlock) {
         if (event) {
         }
+        if (event.shiftKey) {
+            addExcludeRelatedDefBlockCondition(defBlock);
+            return;
+        }
         clickCount++;
         if (clickCount === 1) {
-            // console.log(`关联块左键单击 : ${event.type} ${event.button}`);
             clearTimeout(clickTimeoutId);
             clickTimeoutId = setTimeout(() => {
+                // console.log(`关联块左键单击 : ${event.type} ${event.button}`);
                 clickCount = 0;
                 addIncludeRelatedDefBlockCondition(defBlock);
             }, doubleClickTimeout);
@@ -853,7 +906,7 @@ ${documentName}
             // console.log(`关联块左键双击 : ${event.type} ${event.button}`);
             clearTimeout(clickTimeoutId);
             clickCount = 0;
-            addExcludeRelatedDocBlockCondition(defBlock);
+            addExcludeRelatedDefBlockCondition(defBlock);
         }
     }
     function handleRelatedDefBlockContextmenu(event, defBlock: DefBlock) {
@@ -969,7 +1022,7 @@ ${documentName}
     }
 
     function handleCriteriaConfirm() {
-        if (!isValidStr(saveCriteriaInputText)) {
+        if (isNotValidStr(saveCriteriaInputText)) {
             return;
         }
         let savedQueryParams: IPanelRednerFilterQueryParams = JSON.parse(
@@ -1074,7 +1127,7 @@ ${documentName}
 </script>
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->
-<div class="backlink-panel__area" bind:this={curRootElement}>
+<div class="backlink-panel__area">
     {#if !rootId}
         <p style="padding: 10px 20px;">
             没有获取到当前文档信息，请切换文档重试
@@ -1598,7 +1651,7 @@ ${documentName}
     .tag {
         display: inline-flex;
         align-items: center;
-        padding: 3px 12px 3px 3px;
+        padding: 3px 17px 3px 3px;
         margin: 4px 4px 4px 2px;
         border-radius: 4px;
         cursor: pointer;
@@ -1725,17 +1778,10 @@ ${documentName}
         width: 100%;
         flex: 1;
     }
-    h3,
     .filter-panel__sub_title {
         font-size: 1.06em;
         font-weight: bold;
         margin: 6px 0px;
-    }
-    .fn__flex {
-        /* margin-bottom: 5px; */
-    }
-    .backlinkList {
-        /* margin-bottom: 200px; */
     }
     .block__icon {
         opacity: 1;
@@ -1746,7 +1792,7 @@ ${documentName}
         top: 0;
         text-align: center;
         padding: 0px 0;
-        z-index: 2;
+        z-index: 1;
         background-color: var(--b3-theme-surface);
         margin-bottom: 10px;
     }

@@ -6,7 +6,7 @@
  * API 文档见 [API_zh_CN.md](https://github.com/siyuan-note/siyuan/blob/master/API_zh_CN.md)
  */
 
-import { fetchPost, fetchSyncPost, IWebSocketData } from "siyuan";
+import { fetchSyncPost, IWebSocketData } from "siyuan";
 import { isBoolean } from "./object-util";
 
 
@@ -522,13 +522,43 @@ export async function currentTime(): Promise<number> {
 
 
 
-export async function getBacklinkDoc(defID: string, refTreeID: string, keyword: string): Promise<{ backlinks: IBacklinkData[] }> {
+export async function getBacklinkDoc(defID: string, refTreeID: string, keyword: string, containChildren: boolean): Promise<{ backlinks: IBacklinkData[] }> {
     let data = {
         defID: defID,
         refTreeID: refTreeID,
         keyword: keyword,
+        containChildren: containChildren,
     }
     let url = '/api/ref/getBacklinkDoc';
+
+    return request(url, data);
+}
+
+/**
+ * 
+{
+  "sort": "3",
+  "mSort": "3",
+  "k": "",
+  "mk": "",
+  "id": "20240808122601-yuhti2c"
+}
+ * @param id 文档ID，聚焦就是聚焦后的ID
+ * @param k  反链关键字
+ * @param mk 提及关键字
+ * @param sort 反链排序
+ * @param msort 提及排序
+ * @returns 
+ */
+export async function getBacklink2(id: string, k: string, mk: string, sort: string, msort: string): Promise<any> {
+    let data = {
+        id: id,
+        k: k,
+        mk: mk,
+        sort: sort,
+        msort: msort,
+    }
+    let url = '/api/ref/getBacklink2';
 
     return request(url, data);
 }

@@ -1,6 +1,6 @@
 import { IBacklinkBlockQueryParams, IBacklinkFilterPanelDataQueryParams } from "@/models/backlink-model";
-import { isArrayNotEmpty } from "@/utils/array-util";
-import { isValidStr } from "@/utils/string-util";
+import { isArrayEmpty, isArrayNotEmpty } from "@/utils/array-util";
+import { isNotValidStr } from "@/utils/string-util";
 
 
 
@@ -15,7 +15,7 @@ export function generateGetDefBlockArraySql(
     let rootId = queryParams.rootId;
     let focusBlockId = queryParams.focusBlockId;
     let sql = "";
-    if (focusBlockId) {
+    if (focusBlockId && focusBlockId != rootId) {
         sql = `
         WITH RECURSIVE cte AS (
             SELECT *
@@ -35,7 +35,8 @@ export function generateGetDefBlockArraySql(
             SELECT def_block_id, COUNT(1) AS ref_count
             FROM refs
             GROUP BY def_block_id
-        ) rc ON cte.id = rc.def_block_id
+        ) rc 
+        WHERE  cte.id = rc.def_block_id
         GROUP BY cte.id, rc.ref_count
         LIMIT 999999;
         `
@@ -77,7 +78,7 @@ export function generateGetParentDefBlockArraySql(
         let defBlockIdInSql = generateAndInConditions("def_block_id", defBlockIds);
         backlinkIdInSql = `AND id IN ( SELECT block_id FROM refs WHERE 1 = 1 ${defBlockIdInSql} ) `
     }
-    if (!isValidStr(backlinkIdInSql)) {
+    if (isNotValidStr(backlinkIdInSql)) {
         return "";
     }
 
@@ -96,8 +97,7 @@ export function generateGetParentDefBlockArraySql(
     SELECT id, parent_id, type, childIdPath, CASE WHEN type = 'i' THEN '' ELSE markdown END AS markdown
     FROM parent_block 
     WHERE 1 == 1 
-    AND (type = 'h' AND markdown LIKE '%((%))%' )
-    OR (type = 'i' )
+    AND( ( type = 'i' ) OR ( type = 'h' AND markdown LIKE '%((%))%' ) )
     LIMIT 9999999;
     `
 
@@ -125,7 +125,7 @@ export function generateGetParenListItemtDefBlockArraySql(
     queryParams: IBacklinkBlockQueryParams,
 ): string {
 
-    let backlinkParentBlockIds = queryParams.backlinkParentBlockIds;
+    let backlinkParentBlockIds = queryParams.backlinkAllParentBlockIds;
     let idInSql = generateAndInConditions("parent_id", backlinkParentBlockIds);
 
 
@@ -142,6 +142,29 @@ export function generateGetParenListItemtDefBlockArraySql(
 
     return cleanSpaceText(sql);
 }
+
+export function generateGetListItemtSubMarkdownArraySql(
+    listItemIdArray: string[],
+): string {
+    if (isArrayEmpty(listItemIdArray)) {
+        return "";
+    }
+    let idInSql = generateAndInConditions("parent_id", listItemIdArray);
+
+
+    let sql = `
+    SELECT parent_id,GROUP_CONCAT(markdown) as subMarkdown
+    FROM blocks sb 
+    WHERE 1 = 1 
+        ${idInSql}
+        AND type NOT IN ('l', 'i') 
+    GROUP BY parent_id
+    LIMIT 9999999;
+    `
+
+    return cleanSpaceText(sql);
+}
+
 
 
 export function generateGetBacklinkBlockArraySql(
@@ -173,11 +196,7 @@ export function generateGetBacklinkListItemBlockArraySql(
 
     let sql = `
     SELECT b.*, 
-    p1.type AS parentBlockType, 
-    CASE WHEN p1.type = 'i' 
-        THEN p1.markdown 
-        ELSE NULL 
-    END AS parentListItemMarkdown
+    p1.type AS parentBlockType
 
     FROM blocks b
     LEFT JOIN blocks p1 ON b.parent_id = p1.id
@@ -190,11 +209,18 @@ export function generateGetBacklinkListItemBlockArraySql(
         )
     LIMIT 999999999;
     `
+    /**
+     , 
+        CASE WHEN p1.type = 'i' 
+            THEN p1.markdown 
+            ELSE NULL 
+        END AS parentListItemMarkdown
+     */
     return cleanSpaceText(sql);
 }
 
 
-export function generateGetChildDefBlockArraySql(
+export function generateGetHeadlineChildDefBlockArraySql(
     queryParams: IBacklinkBlockQueryParams,
 ): string {
     let defBlockIds = queryParams.defBlockIds;
@@ -207,11 +233,11 @@ export function generateGetChildDefBlockArraySql(
         let defBlockIdInSql = generateAndInConditions("def_block_id", defBlockIds);
         backlinkIdInSql = `AND id IN ( SELECT block_id FROM refs WHERE 1 = 1 ${defBlockIdInSql} ) `
     }
-    if (!isValidStr(backlinkIdInSql)) {
+    if (isNotValidStr(backlinkIdInSql)) {
         return "";
     }
 
-    let whereSql = ` AND type IN ( 'h', 'c', 'm', 't', 'p', 'html', 'av', 'video', 'audio') `;
+    let whereSql = ` AND type IN ( 'h', 'c', 'm', 't', 'p', 'html', 'av', 'video', 'audio', 'l', 's' )  `;
     //     if (!queryParams.queryAllContentUnderHeadline) {
     //         whereSql = `
     // AND type IN ( 'h', 't', 'p' )
@@ -232,13 +258,61 @@ export function generateGetChildDefBlockArraySql(
         SELECT t.id, t.parent_id, t.markdown, t.type, ( c.parentIdPath || '->' || t.id ) AS parentIdPath 
         FROM blocks t
             INNER JOIN child_block c ON c.id = t.parent_id 
-        WHERE t.type NOT IN ( 'd', 'c', 'm','i', 'tb', 'html', 'video', 'audio', 'widget', 'iframe', 'query_embed' ) 
+        WHERE t.type NOT IN ( 'd', 'i', 'tb', 'audio', 'widget', 'iframe', 'query_embed' ) 
         ) 
     SELECT * 
     FROM child_block 
     WHERE 1 == 1  ${whereSql} 
         LIMIT 9999999;
     `
+    return cleanSpaceText(sql);
+}
+
+
+export function generateGetListItemChildBlockArraySql(
+    queryParams: IBacklinkBlockQueryParams,
+): string {
+    let defBlockIds = queryParams.defBlockIds;
+    let backlinkBlockIds = queryParams.backlinkBlockIds;
+    let parentBlockIds = queryParams.backlinkParentListItemBlockIds;
+
+    let idInSql = "";
+    if (isArrayNotEmpty(parentBlockIds)) {
+        idInSql = generateAndInConditions("id", parentBlockIds);
+    } else if (isArrayNotEmpty(backlinkBlockIds)) {
+        let backlinkIdInSql = generateAndInConditions("id", backlinkBlockIds);
+        idInSql = `AND id IN ( SELECT parent_id FROM blocks WHERE 1 = 1 ${backlinkIdInSql} ) `
+    } else if (isArrayNotEmpty(defBlockIds)) {
+        let defBlockIdInSql = generateAndInConditions("def_block_id", defBlockIds);
+        idInSql = `AND id IN ( SELECT parent_id FROM blocks WHERE 1 =1 AND id IN ( SELECT block_id FROM refs WHERE 1 = 1 ${defBlockIdInSql} ) )`
+    }
+    if (isNotValidStr(idInSql)) {
+        return "";
+    }
+
+    let sql = `
+    WITH RECURSIVE child_block AS (
+        SELECT id,parent_id,type,CAST ( id AS TEXT ) AS parentIdPath 
+        FROM blocks 
+        WHERE 1 = 1 
+            ${idInSql}
+            AND type = 'i' 
+    UNION ALL
+        SELECT t.id,t.parent_id,t.type,( c.parentIdPath || '->' || t.id ) AS parentIdPath 
+        FROM blocks t INNER JOIN child_block c ON c.id = t.parent_id 
+    )
+    SELECT * 
+    FROM child_block 
+    WHERE 1 == 1 AND type IN ( 'i' ) 
+        LIMIT 9999999;
+    `
+    /**
+     * todo 先这样，等后续过两个版本后，都有父级索引后再优化。
+,
+    (SELECT GROUP_CONCAT( markdown ) FROM blocks sb 
+        WHERE 1 = 1 AND sb.parent_id = child_block.id AND sb.type NOT IN ( 'l', 'i' ) GROUP BY sb.parent_id 
+    ) AS subMarkdown 
+     */
     return cleanSpaceText(sql);
 }
 

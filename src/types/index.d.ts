@@ -149,6 +149,8 @@ interface IBacklinkData {
     dom: string;
     expand: boolean;
     backlinkBlock: Block;
+    includeChildListItemIdArray: string[];
+    excludeChildLisetItemIdArray: string[];
 }
 
 

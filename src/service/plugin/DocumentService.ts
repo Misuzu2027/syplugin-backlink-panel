@@ -4,6 +4,7 @@ import { SettingService } from "@/service/setting/SettingService";
 import Instance from "@/utils/Instance";
 import { Menu } from "siyuan";
 import { BacklinkFilterPanelAttributeService, DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY } from "@/service/setting/BacklinkPanelFilterCriteriaService";
+import { clearProtyleGutters } from "@/utils/html-util";
 
 
 let backlinkPanelPageSvelteMap: Map<string, BacklinkFilterPanelPageSvelte> = new Map();
@@ -114,6 +115,12 @@ function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, rootId: s
             focusBlockId: null,
         }
     });
+    backlinkPanelBottomElement.parentElement.addEventListener(
+        "scroll",
+        () => {
+            clearProtyleGutters(backlinkPanelBottomElement as HTMLElement);
+        },
+    );
 
     backlinkPanelPageSvelteMap.set(rootId, pageSvelte);
     documentProtyleElementMap.set(rootId, protyleWysiwygElement as HTMLElement);
