@@ -205,10 +205,10 @@ export class ListItemTreeNode {
 
         for (const child of this.children) {
             if (isArrayNotEmpty(excludeChildIdArray) && excludeChildIdArray.includes(child.id)) {
-                return markdown;
+                continue;
             }
             if (isArrayNotEmpty(includeChildIdArray) && !includeChildIdArray.includes(child.id)) {
-                return markdown;
+                continue;
             }
             let childMarkdown = child.getFilterMarkdown(includeChildIdArray, excludeChildIdArray)
             markdown += childMarkdown;
