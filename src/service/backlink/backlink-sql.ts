@@ -1,4 +1,4 @@
-import { IBacklinkBlockQueryParams, IBacklinkFilterPanelDataQueryParams } from "@/models/backlink-model";
+import { IBacklinkBlockQueryParams } from "@/models/backlink-model";
 import { isArrayEmpty, isArrayNotEmpty } from "@/utils/array-util";
 import { isNotValidStr } from "@/utils/string-util";
 
@@ -10,10 +10,10 @@ import { isNotValidStr } from "@/utils/string-util";
  * @returns 
  */
 export function generateGetDefBlockArraySql(
-    queryParams: IBacklinkFilterPanelDataQueryParams,
+    rootId: string, focusBlockId: string
 ): string {
-    let rootId = queryParams.rootId;
-    let focusBlockId = queryParams.focusBlockId;
+    // let rootId = queryParams.rootId;
+    // let focusBlockId = queryParams.focusBlockId;
     let sql = "";
     if (focusBlockId && focusBlockId != rootId) {
         sql = `

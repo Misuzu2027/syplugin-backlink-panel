@@ -20,8 +20,12 @@ div.backlink-panel__area .sy__backlink .list-item__document-name {
     text-align: left;
     border: 0;
     color: var(--b3-theme-on-background);
-    margin: 8px 8px 0px;
+    margin: 8px 3px 1px;
     border-radius: var(--b3-border-radius);
+}
+
+div.backlink-panel__area .sy__backlink div.protyle {
+    margin: 0px 4px;
 }
 
 div.backlink-panel__area .sy__backlink .protyle .protyle-wysiwyg [data-node-id].li>.protyle-action svg {

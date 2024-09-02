@@ -5,6 +5,9 @@ import Instance from "@/utils/Instance";
 import { Menu } from "siyuan";
 import { BacklinkFilterPanelAttributeService, DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY } from "@/service/setting/BacklinkPanelFilterCriteriaService";
 import { clearProtyleGutters } from "@/utils/html-util";
+import { generateGetDefBlockArraySql } from "../backlink/backlink-sql";
+import { sql } from "@/utils/api";
+import { isArrayEmpty } from "@/utils/array-util";
 
 
 let backlinkPanelPageSvelteMap: Map<string, BacklinkFilterPanelPageSvelte> = new Map();
@@ -48,9 +51,28 @@ export class DocumentService {
     }
 }
 
-function handleSwitchProtyleOrLoadedProtyleStatic(e) {
+async function handleSwitchProtyleOrLoadedProtyleStatic(e) {
+    if (!e || !e.detail || !e.detail.protyle) {
+        return;
+    }
+
+    let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
+    let rootId = e.detail.protyle.block.rootID;
+    if (!rootId) {
+        return;
+    }
+
     let wysiwygElement = e.detail.protyle.wysiwyg.element as Element;
     let documentBottomDisplay = SettingService.ins.SettingConfig.documentBottomDisplay;
+
+    if (documentBottomDisplay) {
+        let getDefBlockArraySql = generateGetDefBlockArraySql(rootId, null);
+        let curDocDefBlockArray: DefBlock[] = await sql(getDefBlockArraySql);
+        if (isArrayEmpty(curDocDefBlockArray)) {
+            documentBottomDisplay = false;;
+        }
+    }
+
     if (wysiwygElement && wysiwygElement.matches(".protyle-wysiwyg--attr")) {
         let attributeValue = wysiwygElement.getAttribute(DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY);
         if (attributeValue == "1") {
@@ -59,12 +81,11 @@ function handleSwitchProtyleOrLoadedProtyleStatic(e) {
             documentBottomDisplay = false;
         }
     }
+
     if (!documentBottomDisplay) {
         return;
     }
 
-    let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
-    let rootId = e.detail.protyle.block.rootID;
     addBacklinkPanelToBottom(docuemntContentElement, rootId);
 
 }
@@ -181,7 +202,7 @@ function getDocumentBlockIconMenus(e) {
         }
     });
     submenus.push({
-        label: "始终显示文档底部反链",
+        label: "始终显示该文档底部反链",
         click: async () => {
             await BacklinkFilterPanelAttributeService.ins.updateDocumentBottomShowPanel(rootId, 1);
 
@@ -190,7 +211,7 @@ function getDocumentBlockIconMenus(e) {
         }
     });
     submenus.push({
-        label: "始终隐藏文档底部反链",
+        label: "始终隐藏该文档底部反链",
         click: async () => {
             BacklinkFilterPanelAttributeService.ins.updateDocumentBottomShowPanel(rootId, -1);
             let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;

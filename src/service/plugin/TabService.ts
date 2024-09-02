@@ -19,7 +19,7 @@ export class TabService {
 
 
     public openBacklinkTab(docTitle: string, docId: string, focusBlockId: string) {
-        if (isNotValidStr(docTitle) || isNotValidStr(docId) || isNotValidStr(focusBlockId)) {
+        if (isNotValidStr(docTitle) || isNotValidStr(docId) ) {
             console.log("反链过滤面板插件 打开反链页签错误，参数缺失")
             return;
         }
@@ -37,7 +37,6 @@ export class TabService {
                         focusBlockId: focusBlockId,
                     }
                 });
-                backlinkFilterPanelPageSvelte.$$prop_def.rootId
 
                 this.element.addEventListener(
                     "scroll",

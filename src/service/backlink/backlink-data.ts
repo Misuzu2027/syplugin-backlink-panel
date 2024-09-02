@@ -1,5 +1,5 @@
 import { sql, getBatchBlockIdIndex, getBacklinkDoc, getBacklink2 } from "@/utils/api";
-import { generateGetParentDefBlockArraySql, generateGetBacklinkListItemBlockArraySql, generateGetDefBlockArraySql as generateGetDocDefBlockArraySql, generateGetBlockArraySql, generateGetParenListItemtDefBlockArraySql, generateGetHeadlineChildDefBlockArraySql, generateGetBacklinkBlockArraySql, generateGetListItemChildBlockArraySql, generateGetListItemtSubMarkdownArraySql } from "./backlink-sql";
+import { generateGetParentDefBlockArraySql, generateGetBacklinkListItemBlockArraySql, generateGetDefBlockArraySql, generateGetBlockArraySql, generateGetParenListItemtDefBlockArraySql, generateGetHeadlineChildDefBlockArraySql, generateGetBacklinkBlockArraySql, generateGetListItemChildBlockArraySql, generateGetListItemtSubMarkdownArraySql } from "./backlink-sql";
 import { IBacklinkFilterPanelData, IBacklinkBlockQueryParams, IBacklinkBlockNode, IBacklinkFilterPanelDataQueryParams, IPanelRenderBacklinkQueryParams, IBacklinkPanelRenderData, ListItemTreeNode } from "@/models/backlink-model";
 import { containsAllKeywords, countOccurrences, isNotValidStr, isValidStr, longestCommonSubstring, splitKeywordStringToArray } from "@/utils/string-util";
 import { getLastItem, intersectionSet, isArrayEmpty, isArrayNotEmpty, isSetEmpty, isSetNotEmpty, paginate } from "@/utils/array-util";
@@ -419,7 +419,7 @@ async function getBatchBacklinkDoc(
     if (backlinkBlockNodeArray.length > backlinkDcoDataResult.length) {
         console.log("反链过滤面板插件 疑似 getBacklinkDoc 接口数据不全，如果清除缓存刷新后还是不全，请反馈开发者。 ");
         console.log("backlinkBlockNodeArray ", backlinkBlockNodeArray, " ,backlinkDcoDataResult ", backlinkDcoDataResult);
-        getBacklink2(curRootId, "", "h8JmZ3lWpR4Tnh8JmZ3", "3", "3")
+        getBacklink2(curRootId, "", "", "3", "3")
     }
 
     let result: IBacklinkCacheData = { backlinks: backlinkDcoDataResult, usedCache: usedCache };
@@ -607,6 +607,7 @@ export async function getBacklinkPanelData(
 ): Promise<IBacklinkFilterPanelData> {
     const startTime = performance.now(); // 记录开始时间
     let rootId = queryParams.rootId;
+    let focusBlockId = queryParams.focusBlockId;
 
     let cacheResult = CacheManager.ins.getBacklinkPanelBaseData(rootId);;
     if (cacheResult) {
@@ -615,8 +616,8 @@ export async function getBacklinkPanelData(
     }
 
 
-    let getCurDocDefBlockArraySql = generateGetDocDefBlockArraySql(queryParams);
-    let curDocDefBlockArray: DefBlock[] = await sql(getCurDocDefBlockArraySql);
+    let getDefBlockArraySql = generateGetDefBlockArraySql(rootId, focusBlockId);
+    let curDocDefBlockArray: DefBlock[] = await sql(getDefBlockArraySql);
     if (isArrayEmpty(curDocDefBlockArray)) {
         let result: IBacklinkFilterPanelData = {
             rootId: rootId,
@@ -998,39 +999,63 @@ async function buildBacklinkPanelData(
         }
     }
 
-    const combinedKeys = [...relatedDefBlockCountMap.keys(), ...backlinkDocumentCountMap.keys()];
+    const blockIdArray = [...relatedDefBlockCountMap.keys(), ...backlinkDocumentCountMap.keys()];
 
-    let relatedDefBlockAndDocumentMap = await getBlockInfoMap(combinedKeys);
+    let relatedDefBlockAndDocumentMap = await getBlockInfoMap(blockIdArray);
 
     let relatedDefBlockArray: DefBlock[] = [];
     let backlinkDocumentArray: DefBlock[] = [];
 
-    for (const key of relatedDefBlockCountMap.keys()) {
-        let blockCount = relatedDefBlockCountMap.get(key);
-        let blockInfo = relatedDefBlockAndDocumentMap.get(key);
+    for (const blockId of relatedDefBlockCountMap.keys()) {
+        let blockCount = relatedDefBlockCountMap.get(blockId);
+        let blockInfo = relatedDefBlockAndDocumentMap.get(blockId);
+
+        let created = backlinkBlockCreatedMap.get(blockId);
+        let updated = backlinkBlockUpdatedMap.get(blockId);
+
+        let dnaymicAnchor = "";
+        let staticAnchor = "";
+        let dynamicAnchorSet = relatedDefBlockDynamicAnchorMap.get(blockId);
+        if (isSetNotEmpty(dynamicAnchorSet)) {
+            dnaymicAnchor = Array.from(dynamicAnchorSet).join(' ');
+        }
+        let staticAnchorSet = relatedDefBlockStaticAnchorMap.get(blockId);
+        if (isSetNotEmpty(staticAnchorSet)) {
+            staticAnchor = Array.from(staticAnchorSet).join(' ');
+        }
+
+
         if (blockInfo) {
             let refBlockInfo: DefBlock = {
                 ...blockInfo,
                 refCount: blockCount,
                 selectionStatus: DefinitionBlockStatus.OPTIONAL
             };
-            let created = backlinkBlockCreatedMap.get(blockInfo.id);
+
             refBlockInfo.created = created ? created : refBlockInfo.created;
-            let updated = backlinkBlockUpdatedMap.get(blockInfo.id);
             refBlockInfo.updated = updated ? updated : refBlockInfo.updated;
-            relatedDefBlockArray.push(refBlockInfo);
-            let dnaymicAnchor = "";
-            let staticAnchor = "";
-            let dynamicAnchorSet = relatedDefBlockDynamicAnchorMap.get(blockInfo.id);
-            if (dynamicAnchorSet) {
-                dnaymicAnchor = Array.from(dynamicAnchorSet).join(' ');
-            }
-            let staticAnchorSet = relatedDefBlockStaticAnchorMap.get(blockInfo.id);
-            if (staticAnchorSet) {
-                staticAnchor = Array.from(staticAnchorSet).join(' ');
-            }
+
             refBlockInfo.dynamicAnchor = dnaymicAnchor
             refBlockInfo.staticAnchor = staticAnchor;
+
+            relatedDefBlockArray.push(refBlockInfo);
+        } else {
+            let refBlockInfo = {} as DefBlock;
+
+            let dnaymicAnchor = "";
+            let staticAnchor = "";
+            let content = isSetNotEmpty(dynamicAnchorSet) ? dynamicAnchorSet.values().next().value : staticAnchorSet.values().next().value;
+
+            refBlockInfo.id = blockId;
+            refBlockInfo.content = content;
+            refBlockInfo.refCount = blockCount;
+            refBlockInfo.created = created;
+            refBlockInfo.updated = updated;
+            refBlockInfo.dynamicAnchor = dnaymicAnchor
+            refBlockInfo.staticAnchor = staticAnchor;
+            refBlockInfo.selectionStatus = DefinitionBlockStatus.OPTIONAL
+            // console.log("不存在的定义块 : ", refBlockInfo)
+            relatedDefBlockArray.push(refBlockInfo);
         }
     }
 
@@ -1122,7 +1147,7 @@ async function backlinkBlockNodeArraySort(
                 let bContent = b.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
                 let result = aContent.localeCompare(bContent, undefined, { sensitivity: 'base', usage: 'sort', numeric: true });
                 if (result == 0) {
-                    result = Number(a.block.updated) - Number(b.block.updated);
+                    result = Number(b.block.updated) - Number(a.block.updated);
                 }
                 return result;
             };
@@ -1359,8 +1384,11 @@ function getDefBlockSortFun(contentBlockSortMethod: BlockSortMethod) {
                 if (statusNum != null) {
                     return statusNum;
                 }
-
-                return Number(a.refCount) - Number(b.refCount);
+                let result = Number(a.refCount) - Number(b.refCount);
+                if (result == 0) {
+                    result = Number(b.updated) - Number(a.updated);
+                }
+                return result;
             };
             break;
         case "refCountDesc":
@@ -1372,8 +1400,12 @@ function getDefBlockSortFun(contentBlockSortMethod: BlockSortMethod) {
                 if (statusNum != null) {
                     return statusNum;
                 }
+                let result = Number(b.refCount) - Number(a.refCount);
+                if (result == 0) {
+                    result = Number(b.updated) - Number(a.updated);
+                }
 
-                return Number(b.refCount) - Number(a.refCount);
+                return result;
             };
             break;
         case "alphabeticAsc":
