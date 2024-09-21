@@ -31,6 +31,8 @@ export class SettingConfig {
     // 双击阈值
     doubleClickTimeout: number;
 
+    // 文档底部反链面板宽度
+    documentBottomBacklinkPaddingWidth: number
 }
 
 

@@ -230,6 +230,8 @@ function intervalSetNodePaddingBottom() {
         if (documentProtyleElementMap.size <= 0) {
             return;
         }
+        let paddingWidthSize = SettingService.ins.SettingConfig.documentBottomBacklinkPaddingWidth;
+
         let paddingBottomSize = "48px";
         for (const key of documentProtyleElementMap.keys()) {
             let protyleElement = documentProtyleElementMap.get(key);
@@ -239,11 +241,15 @@ function intervalSetNodePaddingBottom() {
             }
             let panelElement = protyleElement.parentElement.querySelector(".backlink-panel-document-bottom__area") as HTMLElement;
             if (panelElement && protyleElement.style.paddingLeft != panelElement.style.paddingLeft) {
-                let paddingLeftPx = parseFloat(protyleElement.style.paddingLeft) < 48 ? protyleElement.style.paddingLeft : '48px';
-                panelElement.style.paddingLeft = paddingLeftPx;
-                panelElement.style.paddingRight = paddingLeftPx;
+                let paddingWidthPx = paddingWidthSize + "px";
+                if (paddingWidthSize == undefined || paddingWidthSize == null) {
+                    console.log("intervalSetNodePaddingBottom")
+                    paddingWidthPx = protyleElement.style.paddingLeft;
+                }
+                panelElement.style.paddingLeft = paddingWidthPx;
+                panelElement.style.paddingRight = paddingWidthPx;
             }
         }
-    }, 20);
+    }, 50);
 }
 

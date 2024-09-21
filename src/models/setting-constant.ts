@@ -41,6 +41,7 @@ export function getSettingTabArray(): TabProperty[] {
                 new ItemProperty({ key: "cacheAfterResponseMs", type: "number", name: "启用缓存门槛（毫秒）", description: "当接口响应时间超过这个数，就会把这次查询结果存入缓存，-1 不开启缓存", tips: "", min: -1 }),
                 new ItemProperty({ key: "cacheExpirationTime", type: "number", name: "缓存过期时间（秒）", description: "", tips: "缓存数据失效时间", min: -1, }),
                 new ItemProperty({ key: "doubleClickTimeout", type: "number", name: "双击时间阈值(毫秒)", description: "", tips: "", min: 0, }),
+                new ItemProperty({ key: "documentBottomBacklinkPaddingWidth", type: "number", name: "文档底部反链面板左右间距", description: "为空则跟文档宽度一致。", tips: "" }),
             ]
         }),
     );

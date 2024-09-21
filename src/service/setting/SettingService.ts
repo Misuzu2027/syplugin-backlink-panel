@@ -151,6 +151,8 @@ function getDefaultSettingConfig() {
     defaultConfig.usePraentIdIdx = false;
     defaultConfig.doubleClickTimeout = 0;
 
+    defaultConfig.documentBottomBacklinkPaddingWidth = null;
+
 
     return defaultConfig;
 }

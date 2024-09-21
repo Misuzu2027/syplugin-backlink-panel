@@ -556,7 +556,6 @@
         }
 
         for (const backlinkDoc of backlinkDataArray) {
-            queryParams.includeRelatedDefBlockIds;
             let backlinkNode = backlinkDoc.backlinkBlock;
             let backlinkBlockId = backlinkNode.id;
             let notebookId = backlinkNode.box;
@@ -569,13 +568,13 @@
                 }
             }
             let backlinkRootId = backlinkDoc.blockPaths[0].id;
-            let backlinkRootHpath = backlinkDoc.blockPaths[0].name;
+            // let backlinkRootHpath = backlinkDoc.blockPaths[0].name;
 
             let documentLiElement = createdDocumentLiElement(
                 documentName,
                 backlinkBlockId,
                 backlinkRootId,
-                backlinkRootHpath,
+                backlinkNode.content,
             );
 
             let backlinks: IBacklinkData[] = [backlinkDoc];
@@ -755,7 +754,7 @@
         documentName: string,
         backlinkBlockId: string,
         backlinkRootId: string,
-        backlinkRootHpath: string,
+        docAriaText: string,
     ): HTMLElement {
         let documentLiElement = document.createElement("li");
 
@@ -769,13 +768,16 @@
             "data-backlink-block-id",
             backlinkBlockId,
         );
+        if (docAriaText) {
+            docAriaText = docAriaText.substring(0, 100);
+        }
 
         documentLiElement.innerHTML = `
 <span style="padding-left: 4px;margin-right: 2px" class="b3-list-item__toggle b3-list-item__toggle--hl">
 <svg class="b3-list-item__arrow b3-list-item__arrow--open"><use xlink:href="#iconRight"></use></svg>
 </span>
 <svg class="b3-list-item__graphic popover__block"><use xlink:href="#iconFile"></use></svg>
-<span class="b3-list-item__text" class="ariaLabel" aria-label="${backlinkRootHpath}"  >
+<span class="b3-list-item__text ariaLabel"  aria-label="${docAriaText}"  >
 ${documentName}
 </span>
 <svg class="b3-list-item__graphic counter ariaLabel expand-listitem-icon" aria-label="展开所有列表项"><use xlink:href="#iconLiElementExpand"></use></svg>
