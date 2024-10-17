@@ -852,7 +852,7 @@ async function buildBacklinkPanelData(
         backlinkParentBlockArray: BacklinkParentBlock[],
     }
 ): Promise<IBacklinkFilterPanelData> {
-    let defBlockIdArray = getBlockIds(paramObj.curDocDefBlockArray);
+    let curDocDefBlockIdArray = getBlockIds(paramObj.curDocDefBlockArray);
 
     // 创建一个id到节点的映射
     const backlinkBlockMap: { [key: string]: IBacklinkBlockNode } = {};
@@ -888,7 +888,7 @@ async function buildBacklinkPanelData(
         for (const relatedDefBlockId of relatedDefBlockIdArray) {
             backlinkBlockNode.includeRelatedDefBlockIds.add(relatedDefBlockId)
             backlinkBlockNode.includeCurBlockDefBlockIds.add(relatedDefBlockId)
-            if (defBlockIdArray.includes(relatedDefBlockId)) {
+            if (curDocDefBlockIdArray.includes(relatedDefBlockId)) {
                 backlinkBlockNode.includeDirectDefBlockIds.add(relatedDefBlockId);
             } else {
                 updateMaxValueMap(backlinkBlockCreatedMap, relatedDefBlockId, backlinkBlock.created);
@@ -897,8 +897,8 @@ async function buildBacklinkPanelData(
             }
         }
 
-        // updateDynamicAnchorMap(backlinkBlockNode.dynamicAnchorMap, backlinkBlock.markdown);
-        // updateStaticAnchorMap(backlinkBlockNode.staticAnchorMap, backlinkBlock.markdown);
+        updateDynamicAnchorMap(backlinkBlockNode.dynamicAnchorMap, backlinkBlock.markdown);
+        updateStaticAnchorMap(backlinkBlockNode.staticAnchorMap, backlinkBlock.markdown);
 
         updateMaxValueMap(backlinkBlockCreatedMap, backlinkBlock.root_id, backlinkBlock.created);
         updateMaxValueMap(backlinkBlockUpdatedMap, backlinkBlock.root_id, backlinkBlock.updated);
@@ -920,7 +920,7 @@ async function buildBacklinkPanelData(
             for (const childDefBlockId of backlnikChildDefBlockIdArray) {
                 backlinkBlockNode.includeRelatedDefBlockIds.add(childDefBlockId);
                 // backlinkBlockNode.includeChildDefBlockIds.add((childDefBlockId))
-                if (defBlockIdArray.includes(childDefBlockId)) {
+                if (curDocDefBlockIdArray.includes(childDefBlockId)) {
                     backlinkBlockNode.includeDirectDefBlockIds.add(childDefBlockId);
                 } else if (!relatedDefBlockIdSet.has(childDefBlockId)) {
                     updateMaxValueMap(backlinkBlockCreatedMap, childDefBlockId, backlinkBlockNode.block.created);
@@ -958,7 +958,7 @@ async function buildBacklinkPanelData(
             for (const childDefBlockId of childDefBlockIdArray) {
                 backlinkBlockNode.includeRelatedDefBlockIds.add(childDefBlockId)
                 // backlinkBlockNode.includeChildDefBlockIds.add(defBlockId);
-                if (defBlockIdArray.includes(childDefBlockId)) {
+                if (curDocDefBlockIdArray.includes(childDefBlockId)) {
                     backlinkBlockNode.includeDirectDefBlockIds.add(childDefBlockId);
                 } else {
                     updateMaxValueMap(backlinkBlockCreatedMap, childDefBlockId, backlinkBlock.created);
@@ -986,7 +986,7 @@ async function buildBacklinkPanelData(
             for (const parentDefBlockId of backlnikParentDefBlockIdArray) {
                 backlinkBlockNode.includeRelatedDefBlockIds.add(parentDefBlockId);
                 backlinkBlockNode.includeParentDefBlockIds.add(parentDefBlockId);
-                if (defBlockIdArray.includes(parentDefBlockId)) {
+                if (curDocDefBlockIdArray.includes(parentDefBlockId)) {
                     backlinkBlockNode.includeDirectDefBlockIds.add(parentDefBlockId);
                 } else if (!relatedDefBlockIdSet.has(parentDefBlockId)) {
                     updateMapCount(relatedDefBlockCountMap, parentDefBlockId);

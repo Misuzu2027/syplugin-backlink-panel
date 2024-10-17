@@ -7,7 +7,7 @@ import { SettingService } from "./SettingService";
 import { setReplacer, setReviver } from "@/utils/json-util";
 import { mergeObjects } from "@/utils/object-util";
 
-const BACKLINK_FILTER_PANEL_DEFAULT_CRITERIA_ATRIBUTE_KEY = "custom-backlink-filter-panel-default-criteria";
+const BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY = "custom-backlink-filter-panel-last-criteria";
 const BACKLINK_FILTER_PANEL_SAVED_CRITERIA_ATTRIBUTE_KEY = "custom-backlink-filter-panel-saved-criteria";
 export const DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY = "custom-document-bottom-show-backlink-filter-panel";
 export class BacklinkFilterPanelAttributeService {
@@ -18,30 +18,35 @@ export class BacklinkFilterPanelAttributeService {
 
 
     public async getPanelCriteria(rootId: string): Promise<BacklinkPanelFilterCriteria> {
-        let documentPanelCriteria = CacheManager.ins.getBacklinkFilterPanelDefaultCriteria(rootId);
+        let documentPanelCriteria = CacheManager.ins.getBacklinkFilterPanelLastCriteria(rootId);
+        let defaultQueryParams = this.getDefaultQueryParams();
         let queryParams;
         if (documentPanelCriteria) {
-            let defaultQueryParams = this.getDefaultQueryParams();
             documentPanelCriteria.queryParams.pageNum = 1;
             queryParams = mergeObjects(documentPanelCriteria.queryParams, defaultQueryParams);
         } else {
-            queryParams = this.getDefaultQueryParams();
-            documentPanelCriteria = new BacklinkPanelFilterCriteria();
-            documentPanelCriteria.backlinkPanelFilterViewExpand = SettingService.ins.SettingConfig.filterPanelViewExpand;
-            CacheManager.ins.setBacklinkFilterPanelDefaultCriteria(rootId, documentPanelCriteria);
+            console.log("getPanelCriteria")
+            let attrsMap = await getBlockAttrs(rootId);
+            if (attrsMap && Object.keys(attrsMap).includes(BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY)) {
+                let json = attrsMap[BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY];
+                let parseObject = JSON.parse(json, setReviver) as BacklinkPanelFilterCriteria;
+                if ("queryParams" in parseObject) {
+                    documentPanelCriteria = parseObject;
+                    queryParams = mergeObjects(documentPanelCriteria.queryParams, defaultQueryParams);
+
+                }
+            }
+            if (!documentPanelCriteria) {
+                queryParams = this.getDefaultQueryParams();
+                documentPanelCriteria = new BacklinkPanelFilterCriteria();
+                documentPanelCriteria.backlinkPanelFilterViewExpand = SettingService.ins.SettingConfig.filterPanelViewExpand;
+            }
+            CacheManager.ins.setBacklinkFilterPanelLastCriteria(rootId, documentPanelCriteria);
         }
 
         documentPanelCriteria.queryParams = queryParams;
 
-        // let attrsMap = await getBlockAttrs(rootId);
-        // if (attrsMap && Object.keys(attrsMap).includes(BACKLINK_FILTER_PANEL_DEFAULT_CRITERIA_ATRIBUTE_KEY)) {
-        //     let json = attrsMap[BACKLINK_FILTER_PANEL_DEFAULT_CRITERIA_ATRIBUTE_KEY];
-        //     let parseObject = JSON.parse(json, setReviver) as BacklinkPanelCriteria;
-        //     if (parseObject instanceof BacklinkPanelCriteria) {
-        //         CacheManager.ins.setBacklinkPanelDefaultCriteria(rootId, parseObject);
-        //         return parseObject;
-        //     }
-        // }
+
         // console.log("getBacklinkPanelFilterCriteria queryParams", queryParams)
         return documentPanelCriteria;
     }
@@ -56,16 +61,16 @@ export class BacklinkFilterPanelAttributeService {
         if (lastCriteria) {
             lastCriteriaJson = JSON.stringify(lastCriteria, setReplacer);
         }
-        let riteriaJson = JSON.stringify(criteria, setReplacer);
-        if (riteriaJson == lastCriteriaJson) {
+        let criteriaJson = JSON.stringify(criteria, setReplacer);
+        if (criteriaJson == lastCriteriaJson) {
             return;
         }
 
-        CacheManager.ins.setBacklinkFilterPanelDefaultCriteria(rootId, criteria);
+        CacheManager.ins.setBacklinkFilterPanelLastCriteria(rootId, criteria);
 
-        // let attrs = {};
-        // attrs[BACKLINK_FILTER_PANEL_DEFAULT_CRITERIA_ATRIBUTE_KEY] = criteriaJson;
-        // setBlockAttrs(rootId, attrs);
+        let attrs = {};
+        attrs[BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY] = criteriaJson;
+        setBlockAttrs(rootId, attrs);
     }
 
 

@@ -93,7 +93,7 @@
     let showSaveCriteriaInputBox: boolean = false;
     let saveCriteriaInputText: string = "";
 
-    $: updateDefaultCriteria(queryParams, panelFilterViewExpand);
+    $: updateLastCriteria(queryParams, panelFilterViewExpand);
 
     onMount(async () => {
         doubleClickTimeout =
@@ -115,7 +115,7 @@
         clearBacklinkProtyleList();
     });
 
-    function updateDefaultCriteria(
+    function updateLastCriteria(
         queryParams: IPanelRednerFilterQueryParams,
         backlinkPanelFilterViewExpand: boolean,
     ) {
@@ -786,6 +786,15 @@ ${documentName}
         documentLiElement.addEventListener("click", (event: MouseEvent) => {
             clickBacklinkDocumentLiElement(event);
         });
+        documentLiElement.addEventListener("mousedown", (event: MouseEvent) => {
+            if (event.button !== 1) {
+                return;
+            }
+            event.stopPropagation();
+            event.preventDefault();
+            const target = event.currentTarget as HTMLElement;
+            toggleBacklinkDocument(target);
+        });
 
         documentLiElement
             .querySelector(
@@ -1154,18 +1163,18 @@ ${documentName}
             <span class="fn__flex-1"></span>
             <span class="fn__space"></span>
             <span
-                class="block__icon b3-tooltips b3-tooltips__sw"
+                class="block__icon ariaLabel"
                 aria-label="恢复默认"
                 on:click|stopPropagation={resetFilterQueryParametersToDefault}
                 on:keydown={handleKeyDownDefault}
                 ><svg class=""
-                    ><use xlink:href="#ResetInitialization"></use></svg
+                    ><use xlink:href="#iconResetInitialization"></use></svg
                 ></span
             >
             <span class="fn__space"></span>
             <span class="fn__space"></span>
             <span
-                class="block__icon b3-tooltips b3-tooltips__sw"
+                class="block__icon ariaLabel"
                 aria-label="清除缓存并刷新"
                 on:click|stopPropagation={clearCacheAndRefresh}
                 on:keydown={handleKeyDownDefault}
@@ -1174,18 +1183,12 @@ ${documentName}
             <span class="fn__space"></span>
             <span class="fn__space"></span>
             {#if panelFilterViewExpand}
-                <span
-                    class="block__icon b3-tooltips b3-tooltips__sw"
-                    aria-label="折叠"
-                >
+                <span class="block__icon ariaLabel" aria-label="折叠">
                     <svg><use xlink:href="#iconUp"></use></svg>
                 </span>
             {/if}
             {#if !panelFilterViewExpand}
-                <span
-                    class="block__icon b3-tooltips b3-tooltips__sw"
-                    aria-label="展开"
-                >
+                <span class="block__icon ariaLabel" aria-label="展开">
                     <svg><use xlink:href="#iconDown"></use></svg>
                 </span>
             {/if}
@@ -1474,7 +1477,7 @@ ${documentName}
                 on:click|stopPropagation={resetBacklinkQueryParametersToDefault}
                 on:keydown={handleKeyDownDefault}
                 ><svg class=""
-                    ><use xlink:href="#ResetInitialization"></use></svg
+                    ><use xlink:href="#iconResetInitialization"></use></svg
                 ></span
             >
             <span class="fn__space"></span>
@@ -1794,7 +1797,7 @@ ${documentName}
         top: 0;
         text-align: center;
         padding: 0px 0;
-        z-index: 1;
+        z-index: 2;
         background-color: var(--b3-theme-surface);
         margin-bottom: 10px;
     }

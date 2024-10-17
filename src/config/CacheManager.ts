@@ -11,7 +11,7 @@ export class CacheManager {
 
     private backlinkPanelBaseDataCache: CacheUtil = new CacheUtil();
     private backlinkDocApiDataCache: CacheUtil = new CacheUtil();
-    private backlinkFilterPanelDefaultCriteriaCache: CacheUtil = new CacheUtil();
+    private backlinkFilterPanelLastCriteriaCache: CacheUtil = new CacheUtil();
     private backlinkPanelSavedCriteriaCache: CacheUtil = new CacheUtil();
 
     private dayTtl: number = 24 * 60 * 60 * 1000;
@@ -46,11 +46,11 @@ export class CacheManager {
     }
 
 
-    public setBacklinkFilterPanelDefaultCriteria(rootId: string, value: BacklinkPanelFilterCriteria) {
-        this.backlinkFilterPanelDefaultCriteriaCache.set(rootId, value, this.dayTtl);
+    public setBacklinkFilterPanelLastCriteria(rootId: string, value: BacklinkPanelFilterCriteria) {
+        this.backlinkFilterPanelLastCriteriaCache.set(rootId, value, this.dayTtl);
     }
-    public getBacklinkFilterPanelDefaultCriteria(rootId: string): BacklinkPanelFilterCriteria {
-        return this.backlinkFilterPanelDefaultCriteriaCache.get(rootId);
+    public getBacklinkFilterPanelLastCriteria(rootId: string): BacklinkPanelFilterCriteria {
+        return this.backlinkFilterPanelLastCriteriaCache.get(rootId);
     }
 
 

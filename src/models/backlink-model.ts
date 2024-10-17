@@ -34,10 +34,16 @@ export interface IBacklinkBlockNode {
     parentMarkdown: string;
     listItemChildMarkdown: string;
     headlineChildMarkdown: string;
+    // 存放包含当前文档定义块的定义块id
     includeDirectDefBlockIds: Set<string>;
+    // 存放包含关联定义块的id；关联的定义：非当前文档的定义块
     includeRelatedDefBlockIds: Set<string>;
+    // 存放当前块的定义块。
     includeCurBlockDefBlockIds: Set<string>;
+    // 存放子级块的定义块。反链块是列表项或标题就会有子级。
+    // 废弃，列表项的子级定义块用 parentListItemTreeNode 获取。标题的子级定义块在 includeRelatedDefBlockIds 中。
     // includeChildDefBlockIds: Set<string>;
+    // 存放父级块存在的定义块。
     includeParentDefBlockIds: Set<string>;
     dynamicAnchorMap: Map<string, Set<string>>;
     staticAnchorMap: Map<string, Set<string>>;
