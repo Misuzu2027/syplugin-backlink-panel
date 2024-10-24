@@ -68,31 +68,7 @@ async function handleSwitchProtyleOrLoadedProtyleStatic(e) {
         return;
     }
 
-    let wysiwygElement = e.detail.protyle.wysiwyg.element as Element;
-    let documentBottomDisplay = SettingService.ins.SettingConfig.documentBottomDisplay;
-
-    if (documentBottomDisplay) {
-        let getDefBlockArraySql = generateGetDefBlockArraySql(rootId, null);
-        let curDocDefBlockArray: DefBlock[] = await sql(getDefBlockArraySql);
-        if (isArrayEmpty(curDocDefBlockArray)) {
-            documentBottomDisplay = false;;
-        }
-    }
-
-    if (wysiwygElement && wysiwygElement.matches(".protyle-wysiwyg--attr")) {
-        let attributeValue = wysiwygElement.getAttribute(DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY);
-        if (attributeValue == "1") {
-            documentBottomDisplay = true;
-        } else if (attributeValue == "-1") {
-            documentBottomDisplay = false;
-        }
-    }
-
-    if (!documentBottomDisplay) {
-        return;
-    }
-
-    addBacklinkPanelToBottom(docuemntContentElement, rootId);
+    await addBacklinkPanelToBottom(docuemntContentElement, rootId);
 
 }
 
@@ -108,15 +84,50 @@ function handleDestroyProtyle(e) {
     destroyPanel(docuemntContentElement);
 }
 
+async function getDocumentBottomBacklinkPanelDisplay(docuemntContentElement: HTMLElement, rootId: string) {
+    let documentBottomDisplay = SettingService.ins.SettingConfig.documentBottomDisplay;
 
-function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, rootId: string) {
+    if (documentBottomDisplay) {
+        let getDefBlockArraySql = generateGetDefBlockArraySql(rootId, null);
+        let curDocDefBlockArray: DefBlock[] = await sql(getDefBlockArraySql);
+        if (isArrayEmpty(curDocDefBlockArray)) {
+            documentBottomDisplay = false;;
+        }
+    }
+
+    if (docuemntContentElement && docuemntContentElement.matches(".protyle-wysiwyg--attr")) {
+        let attributeValue = docuemntContentElement.getAttribute(DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY);
+        if (attributeValue == "1") {
+            documentBottomDisplay = true;
+        } else if (attributeValue == "-1") {
+            documentBottomDisplay = false;
+        }
+    }
+
+    return documentBottomDisplay;
+}
+
+
+async function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, rootId: string) {
     if (!docuemntContentElement || !rootId) {
         return;
     }
+    let bottomDisplay = await getDocumentBottomBacklinkPanelDisplay(docuemntContentElement, rootId);
+    // 如果该文档不需要显示，则尝试删除该元素内部可能存在的底部反链。
+    if (!bottomDisplay) {
+        destroyPanel(docuemntContentElement);
+        return;
+    }
+
     let protyleWysiwygElement = docuemntContentElement.querySelector(".protyle-wysiwyg.protyle-wysiwyg--attr");
     let backlinkPanelBottomElement = docuemntContentElement.querySelector(".backlink-panel-document-bottom__area");
     if (backlinkPanelBottomElement) {
-        return;
+        let panelRootId = backlinkPanelBottomElement.getAttribute("data-root-id");
+        if (panelRootId == rootId) {
+            return;
+        } else {
+            destroyPanel(docuemntContentElement);
+        }
     }
 
     backlinkPanelBottomElement = document.createElement("div");
@@ -205,7 +216,7 @@ function getDocumentBlockIconMenus(e) {
             let documentBottomDisplay = SettingService.ins.SettingConfig.documentBottomDisplay;
             if (documentBottomDisplay) {
                 let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
-                addBacklinkPanelToBottom(docuemntContentElement, rootId);
+                await addBacklinkPanelToBottom(docuemntContentElement, rootId);
             } else {
                 handleDestroyProtyle(e);
             }
@@ -217,7 +228,7 @@ function getDocumentBlockIconMenus(e) {
             await BacklinkFilterPanelAttributeService.ins.updateDocumentBottomShowPanel(rootId, 1);
 
             let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
-            addBacklinkPanelToBottom(docuemntContentElement, rootId);
+            await addBacklinkPanelToBottom(docuemntContentElement, rootId);
         }
     });
     submenus.push({

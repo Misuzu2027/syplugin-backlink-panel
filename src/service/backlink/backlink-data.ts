@@ -355,6 +355,7 @@ async function getBatchBacklinkDoc(
         } else {
             // 一手动态规划提取连续相同的字符串！ 好像出现一些字符串导致查询不到数据，需要观察一下。
             // 单引号无法查询 "'" ，在查询的时候过滤吧。
+            // 破案了，原因是后端使用了缓存，但是在查询缓存的时候，会把 “mark"标记给缓存到内容中，这样其他查询的地方，会使用缓存，导致无法命中。
             keyword = longestCommonSubstring(keyword, backlinkContent);
         }
         defIdRefTreeIdKeywordMap.set(mapKey, keyword);
@@ -454,6 +455,7 @@ async function getBacklinkDocByApiOrCache(
     rootId: string, defId: string, refTreeId: string, keyword: string, containChildren: boolean
 ): Promise<IBacklinkCacheData> {
     keyword = formatBacklinkDocApiKeyword(keyword);
+    keyword = "";
 
     let backlinks = CacheManager.ins.getBacklinkDocApiData(rootId, defId, refTreeId, keyword);;
     let result: IBacklinkCacheData = { backlinks: backlinks, usedCache: false };
