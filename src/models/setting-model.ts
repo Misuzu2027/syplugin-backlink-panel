@@ -1,4 +1,4 @@
-import { isValidStr } from "@/utils/string-util";
+import { isStrNotBlank } from "@/utils/string-util";
 
 
 export class SettingConfig {
@@ -53,7 +53,7 @@ export class TabProperty {
     constructor({ key, name, iconKey, props }: ITabProperty) {
         this.key = key;
         this.name = name;
-        if (isValidStr(iconKey)) {
+        if (isStrNotBlank(iconKey)) {
             this.iconKey = iconKey;
         } else {
             this.iconKey = "setting";

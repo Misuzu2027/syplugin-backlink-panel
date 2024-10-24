@@ -83,21 +83,21 @@ export function countOccurrences(str: string, subStr: string): number {
  * @param s 需要检查的字符串（或其他类型的内容）
  * @returns true / false 是否为有效的字符串
  */
-export function isValidStr(s: any): boolean {
+export function isStrNotBlank(s: any): boolean {
     if (s == undefined || s == null || s === '') {
         return false;
     }
     return true;
 }
 
-export function isNotValidStr(s: any): boolean {
-    return !isValidStr(s);
+export function isStrBlank(s: any): boolean {
+    return !isStrNotBlank(s);
 }
 
 
 export function splitKeywordStringToArray(keywordStr: string): string[] {
     let keywordArray = [];
-    if (!isValidStr(keywordStr)) {
+    if (!isStrNotBlank(keywordStr)) {
         return keywordArray;
     }
     // 分离空格

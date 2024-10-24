@@ -8,6 +8,7 @@ import { clearProtyleGutters } from "@/utils/html-util";
 import { generateGetDefBlockArraySql } from "../backlink/backlink-sql";
 import { sql } from "@/utils/api";
 import { isArrayEmpty } from "@/utils/array-util";
+import { NewNodeID } from "@/utils/siyuan-util";
 
 
 let backlinkPanelPageSvelteMap: Map<string, BacklinkFilterPanelPageSvelte> = new Map();
@@ -55,6 +56,11 @@ async function handleSwitchProtyleOrLoadedProtyleStatic(e) {
     if (!e || !e.detail || !e.detail.protyle) {
         return;
     }
+    let protyleElement = e.detail.protyle.element as HTMLElement;
+    // 如果是闪卡界面，不显示底部反链面板
+    if (protyleElement && protyleElement.classList.contains("card__block")) {
+        return;
+    }
 
     let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
     let rootId = e.detail.protyle.block.rootID;
@@ -91,8 +97,8 @@ async function handleSwitchProtyleOrLoadedProtyleStatic(e) {
 }
 
 function handleDestroyProtyle(e) {
-    let rootId = e.detail.protyle.block.rootID;
-    documentProtyleElementMap.delete(rootId);
+    // let rootId = e.detail.protyle.block.rootID;
+    // documentProtyleElementMap.delete(rootId);
 
     let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
     if (!docuemntContentElement) {
@@ -117,6 +123,7 @@ function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, rootId: s
     backlinkPanelBottomElement.classList.add(
         "backlink-panel-document-bottom__area"
     );
+
     let isMobile = EnvConfig.ins.isMobile;
     if (isMobile) {
         backlinkPanelBottomElement.classList.add("document-panel-plugin-mobile");
@@ -124,7 +131,9 @@ function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, rootId: s
 
     // console.log("handleDestroyProtyle setAttribute rootId ", rootId)
     docuemntContentElement.appendChild(backlinkPanelBottomElement);
+    let panelId = NewNodeID();
     backlinkPanelBottomElement.setAttribute("data-root-id", rootId);
+    backlinkPanelBottomElement.setAttribute("misuzu-backlink-panel-id", panelId)
 
     let hrElement = document.createElement("hr");
     backlinkPanelBottomElement.appendChild(hrElement);
@@ -143,8 +152,8 @@ function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, rootId: s
         },
     );
 
-    backlinkPanelPageSvelteMap.set(rootId, pageSvelte);
-    documentProtyleElementMap.set(rootId, protyleWysiwygElement as HTMLElement);
+    backlinkPanelPageSvelteMap.set(panelId, pageSvelte);
+    documentProtyleElementMap.set(panelId, protyleWysiwygElement as HTMLElement);
     // handleProtyleHeightChange(protyleElement)
 }
 
@@ -157,15 +166,16 @@ function destroyPanel(docuemntContentElement: HTMLElement) {
     if (!backlinkPanelBottomElement) {
         return;
     }
-    let panelRootId = backlinkPanelBottomElement.getAttribute("data-root-id");
-    if (!panelRootId) {
+    let panelId = backlinkPanelBottomElement.getAttribute("misuzu-backlink-panel-id");
+    if (!panelId) {
         return;
     }
-    let pageSvelte = backlinkPanelPageSvelteMap.get(panelRootId);
+    documentProtyleElementMap.delete(panelId);
+    let pageSvelte = backlinkPanelPageSvelteMap.get(panelId);
     if (!pageSvelte) {
         return;
     }
-    backlinkPanelPageSvelteMap.delete(panelRootId);
+    backlinkPanelPageSvelteMap.delete(panelId);
     pageSvelte.$destroy();
     backlinkPanelBottomElement.remove();
 

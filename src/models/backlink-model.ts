@@ -1,6 +1,6 @@
 import { getRefBlockId } from "@/service/backlink/backlink-data";
 import { isArrayEmpty, isArrayNotEmpty, isSetNotEmpty } from "@/utils/array-util";
-import { isValidStr } from "@/utils/string-util";
+import { isStrNotBlank } from "@/utils/string-util";
 
 export interface IBacklinkFilterPanelDataQueryParams {
     rootId: string;
@@ -207,7 +207,7 @@ export class ListItemTreeNode {
 
 
     getFilterMarkdown(includeChildIdArray: string[], excludeChildIdArray: string[]): string {
-        let markdown: string = isValidStr(this.subMarkdown) ? this.subMarkdown : "";
+        let markdown: string = isStrNotBlank(this.subMarkdown) ? this.subMarkdown : "";
 
         for (const child of this.children) {
             if (isArrayNotEmpty(excludeChildIdArray) && excludeChildIdArray.includes(child.id)) {

@@ -2,7 +2,7 @@
     import { EnvConfig } from "@/config/EnvConfig";
     import { onDestroy, onMount } from "svelte";
     import BacklinkFilterPanelPageSvelte from "@/components/panel/backlink-filter-panel-page.svelte";
-    import { isValidStr } from "@/utils/string-util";
+    import { isStrNotBlank } from "@/utils/string-util";
 
     let isMobile = false;
     let dockActive: boolean;
@@ -63,7 +63,7 @@
                 if (mutation.attributeName === "style") {
                     const newTransform = (mutation.target as HTMLElement).style
                         .transform;
-                    if (isValidStr(newTransform)) {
+                    if (isStrNotBlank(newTransform)) {
                         dockActive = true;
                         rootId = lastRootId;
                     } else {

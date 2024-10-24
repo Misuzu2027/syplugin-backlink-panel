@@ -1,4 +1,5 @@
 import { isArrayEmpty } from "./array-util";
+import { isStrBlank } from "./string-util";
 
 export const escapeAttr = (html: string) => {
     return html.replace(/"/g, "&quot;").replace(/'/g, "&apos;");
@@ -268,4 +269,26 @@ export function getActiveTab(): HTMLDivElement {
         `.layout-tab-container.fn__flex-1>div.protyle[data-id="${dataId}"]`
     ) as HTMLDivElement;
     return activeTab;
+}
+
+
+// 将 HTML 字符串转换为 DOM 对象
+export function stringToDom(htmlString: string): Element {
+    if (isStrBlank(htmlString)) {
+        return null;
+    }
+    const container = document.createElement('div')
+    container.innerHTML = htmlString.trim();
+
+    return container.children[0];
+}
+
+// 将 HTML 字符串转换为 DOM 节点数组
+export function stringToDomArray(htmlString: string): Element[] {
+    // 创建一个容器元素，临时用于包含解析后的节点
+    const container = document.createElement('div');
+    container.innerHTML = htmlString.trim(); // 清除字符串两端空白字符
+
+    // 转换 NodeList 为数组返回
+    return Array.from(container.children);
 }

@@ -35,7 +35,7 @@
         syHasChildListNode,
     } from "@/utils/html-util";
     import {
-        isNotValidStr,
+        isStrBlank,
         removePrefixAndSuffix,
         splitKeywordStringToArray,
     } from "@/utils/string-util";
@@ -567,8 +567,8 @@
                     break;
                 }
             }
-            let backlinkRootId = backlinkDoc.blockPaths[0].id;
-            // let backlinkRootHpath = backlinkDoc.blockPaths[0].name;
+            let backlinkRootId = backlinkDoc.backlinkBlock.root_id;
+            // let backlinkRootId = backlinkDoc.blockPaths[0].id;
 
             let documentLiElement = createdDocumentLiElement(
                 documentName,
@@ -1033,7 +1033,7 @@ ${documentName}
     }
 
     function handleCriteriaConfirm() {
-        if (isNotValidStr(saveCriteriaInputText)) {
+        if (isStrBlank(saveCriteriaInputText)) {
             return;
         }
         let savedQueryParams: IPanelRednerFilterQueryParams = JSON.parse(

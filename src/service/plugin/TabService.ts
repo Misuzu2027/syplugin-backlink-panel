@@ -3,7 +3,7 @@ import BacklinkFilterPanelPageSvelte from "@/components/panel/backlink-filter-pa
 import Instance from "@/utils/Instance";
 import { openTab } from "siyuan";
 import { CUSTOM_ICON_MAP } from "@/models/icon-constant";
-import { isNotValidStr } from "@/utils/string-util";
+import { isStrBlank } from "@/utils/string-util";
 import { clearProtyleGutters } from "@/utils/html-util";
 
 
@@ -19,7 +19,7 @@ export class TabService {
 
 
     public openBacklinkTab(docTitle: string, docId: string, focusBlockId: string) {
-        if (isNotValidStr(docTitle) || isNotValidStr(docId) ) {
+        if (isStrBlank(docTitle) || isStrBlank(docId) ) {
             console.log("反链过滤面板插件 打开反链页签错误，参数缺失")
             return;
         }

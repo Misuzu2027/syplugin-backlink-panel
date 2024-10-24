@@ -1,6 +1,6 @@
 import { IBacklinkBlockQueryParams } from "@/models/backlink-model";
 import { isArrayEmpty, isArrayNotEmpty } from "@/utils/array-util";
-import { isNotValidStr } from "@/utils/string-util";
+import { isStrBlank } from "@/utils/string-util";
 
 
 
@@ -78,7 +78,7 @@ export function generateGetParentDefBlockArraySql(
         let defBlockIdInSql = generateAndInConditions("def_block_id", defBlockIds);
         backlinkIdInSql = `AND id IN ( SELECT block_id FROM refs WHERE 1 = 1 ${defBlockIdInSql} ) `
     }
-    if (isNotValidStr(backlinkIdInSql)) {
+    if (isStrBlank(backlinkIdInSql)) {
         return "";
     }
 
@@ -233,7 +233,7 @@ export function generateGetHeadlineChildDefBlockArraySql(
         let defBlockIdInSql = generateAndInConditions("def_block_id", defBlockIds);
         backlinkIdInSql = `AND id IN ( SELECT block_id FROM refs WHERE 1 = 1 ${defBlockIdInSql} ) `
     }
-    if (isNotValidStr(backlinkIdInSql)) {
+    if (isStrBlank(backlinkIdInSql)) {
         return "";
     }
 
@@ -286,7 +286,7 @@ export function generateGetListItemChildBlockArraySql(
         let defBlockIdInSql = generateAndInConditions("def_block_id", defBlockIds);
         idInSql = `AND id IN ( SELECT parent_id FROM blocks WHERE 1 =1 AND id IN ( SELECT block_id FROM refs WHERE 1 = 1 ${defBlockIdInSql} ) )`
     }
-    if (isNotValidStr(idInSql)) {
+    if (isStrBlank(idInSql)) {
         return "";
     }
 

@@ -1,11 +1,14 @@
 import { sql, getBatchBlockIdIndex, getBacklinkDoc, getBacklink2 } from "@/utils/api";
 import { generateGetParentDefBlockArraySql, generateGetBacklinkListItemBlockArraySql, generateGetDefBlockArraySql, generateGetBlockArraySql, generateGetParenListItemtDefBlockArraySql, generateGetHeadlineChildDefBlockArraySql, generateGetBacklinkBlockArraySql, generateGetListItemChildBlockArraySql, generateGetListItemtSubMarkdownArraySql } from "./backlink-sql";
 import { IBacklinkFilterPanelData, IBacklinkBlockQueryParams, IBacklinkBlockNode, IBacklinkFilterPanelDataQueryParams, IPanelRenderBacklinkQueryParams, IBacklinkPanelRenderData, ListItemTreeNode } from "@/models/backlink-model";
-import { containsAllKeywords, countOccurrences, isNotValidStr, isValidStr, longestCommonSubstring, splitKeywordStringToArray } from "@/utils/string-util";
-import { getLastItem, intersectionSet, isArrayEmpty, isArrayNotEmpty, isSetEmpty, isSetNotEmpty, paginate } from "@/utils/array-util";
+import { containsAllKeywords, countOccurrences, isStrBlank, isStrNotBlank, longestCommonSubstring, splitKeywordStringToArray } from "@/utils/string-util";
+import { intersectionSet, isArrayEmpty, isArrayNotEmpty, isSetEmpty, isSetNotEmpty, paginate } from "@/utils/array-util";
 import { DefinitionBlockStatus } from "@/models/backlink-constant";
 import { CacheManager } from "@/config/CacheManager";
 import { SettingService } from "../setting/SettingService";
+import { Lute } from "siyuan";
+import { stringToDom } from "@/utils/html-util";
+import { NewNodeID } from "@/utils/siyuan-util";
 
 
 
@@ -385,7 +388,7 @@ async function getBatchBacklinkDoc(
     let backlinkDcoDataMap: Map<string, IBacklinkData> = new Map<string, IBacklinkData>();
 
     for (const backlink of allBacklinksArray) {
-        let lastBreadcrumbId: string = getLastItem(backlink.blockPaths).id;
+        let lastBreadcrumbId: string = getBacklinkBlockId(backlink.dom);
         if (backlinkDcoDataMap.has(lastBreadcrumbId)) {
             continue;
         }
@@ -404,8 +407,8 @@ async function getBatchBacklinkDoc(
     /* 排序 */
     // 根据 orderMap 中的顺序对 arr 进行排序
     backlinkDcoDataResult.sort((a, b) => {
-        let aId = getLastItem(a.blockPaths).id;
-        let bId = getLastItem(b.blockPaths).id;
+        let aId = getBacklinkBlockId(a.dom);
+        let bId = getBacklinkBlockId(b.dom);
         const indexA = backlinkBlockIdOrderMap.has(aId)
             ? backlinkBlockIdOrderMap.get(aId)!
             : Infinity;
@@ -432,6 +435,20 @@ async function getBatchBacklinkDoc(
     return result;
 }
 
+function getBacklinkBlockId(dom: string): string {
+    if (isStrBlank(dom)) {
+        return NewNodeID();
+    }
+    let backklinkDom = stringToDom(dom);
+    if (!backklinkDom) {
+        return NewNodeID();
+    }
+    let id = backklinkDom.getAttribute("data-node-id");
+    if (isStrBlank(id)) {
+        return NewNodeID();
+    }
+    return id;
+}
 
 async function getBacklinkDocByApiOrCache(
     rootId: string, defId: string, refTreeId: string, keyword: string, containChildren: boolean
@@ -466,7 +483,7 @@ async function getBacklinkDocByApiOrCache(
 }
 
 function formatBacklinkDocApiKeyword(keyword: string): string {
-    if (isNotValidStr(keyword)) {
+    if (isStrBlank(keyword)) {
         return "";
     }
     let keywordSplitArray = keyword.split("'");
@@ -759,7 +776,7 @@ async function getListItemChildBlockArray(queryParams: IBacklinkBlockQueryParams
             }
         }
         let getSubMarkdownSql = generateGetListItemtSubMarkdownArraySql(Array.from(listItemIdSet));
-        if (isValidStr(getSubMarkdownSql)) {
+        if (isStrNotBlank(getSubMarkdownSql)) {
             let subMarkdownArray: BacklinkChildBlock[] = await sql(getSubMarkdownSql);
             subMarkdownArray = subMarkdownArray ? subMarkdownArray : [];
             let subMarkdownMap = new Map<string, string>();
@@ -1226,10 +1243,10 @@ export async function defBlockArrayTypeAndKeywordFilter(
 
     if (defBLockType) {
         for (const defBlock of defBlockArray) {
-            if (defBLockType == "dynamicAnchorText" && isNotValidStr(defBlock.dynamicAnchor)) {
+            if (defBLockType == "dynamicAnchorText" && isStrBlank(defBlock.dynamicAnchor)) {
                 console.log("dynamicAnchorText defBlock ", defBlock)
                 defBlock.filterStatus = true;
-            } else if (defBLockType == "staticAnchorText" && isNotValidStr(defBlock.staticAnchor)) {
+            } else if (defBLockType == "staticAnchorText" && isStrBlank(defBlock.staticAnchor)) {
                 console.log("staticAnchorText defBlock ", defBlock)
                 defBlock.filterStatus = true;
             }
