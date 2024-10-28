@@ -4,7 +4,7 @@ import { SettingService } from "@/service/setting/SettingService";
 import Instance from "@/utils/Instance";
 import { Menu } from "siyuan";
 import { BacklinkFilterPanelAttributeService, DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY } from "@/service/setting/BacklinkPanelFilterCriteriaService";
-import { clearProtyleGutters } from "@/utils/html-util";
+import { clearProtyleGutters, hasClosestByClassName } from "@/utils/html-util";
 import { generateGetDefBlockArraySql } from "../backlink/backlink-sql";
 import { sql } from "@/utils/api";
 import { isArrayEmpty } from "@/utils/array-util";
@@ -56,11 +56,6 @@ async function handleSwitchProtyleOrLoadedProtyleStatic(e) {
     if (!e || !e.detail || !e.detail.protyle) {
         return;
     }
-    let protyleElement = e.detail.protyle.element as HTMLElement;
-    // 如果是闪卡界面，不显示底部反链面板
-    if (protyleElement && protyleElement.classList.contains("card__block")) {
-        return;
-    }
 
     let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
     let rootId = e.detail.protyle.block.rootID;
@@ -85,6 +80,18 @@ function handleDestroyProtyle(e) {
 }
 
 async function getDocumentBottomBacklinkPanelDisplay(docuemntContentElement: HTMLElement, rootId: string) {
+    // 如果是闪卡界面，不显示底部反链面板
+    let isCardBlock = hasClosestByClassName(docuemntContentElement, "card__block")
+    if (isCardBlock) {
+        return false;
+    }
+    // 必须是页签文档或悬浮窗才可以通过。防止 Dock 栏的插件渲染 protyle 加载反链。
+    let isLayoutCenter = hasClosestByClassName(docuemntContentElement, "layout__center");
+    let isPopoverBlock = hasClosestByClassName(docuemntContentElement, "block__popover");
+    if (!isLayoutCenter && !isPopoverBlock) {
+        return false;
+    }
+
     let documentBottomDisplay = SettingService.ins.SettingConfig.documentBottomDisplay;
 
     if (documentBottomDisplay) {
@@ -94,9 +101,15 @@ async function getDocumentBottomBacklinkPanelDisplay(docuemntContentElement: HTM
             documentBottomDisplay = false;;
         }
     }
+    let docProtyleElement = null;
+    if (docuemntContentElement.matches(".protyle-wysiwyg--attr")) {
+        docProtyleElement = docuemntContentElement;
+    } else {
+        docProtyleElement = docuemntContentElement.querySelector(`div.protyle-wysiwyg--attr[${DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY}]`);
+    }
 
-    if (docuemntContentElement && docuemntContentElement.matches(".protyle-wysiwyg--attr")) {
-        let attributeValue = docuemntContentElement.getAttribute(DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY);
+    if (docProtyleElement) {
+        let attributeValue = docProtyleElement.getAttribute(DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY);
         if (attributeValue == "1") {
             documentBottomDisplay = true;
         } else if (attributeValue == "-1") {

@@ -25,7 +25,6 @@ export class BacklinkFilterPanelAttributeService {
             documentPanelCriteria.queryParams.pageNum = 1;
             queryParams = mergeObjects(documentPanelCriteria.queryParams, defaultQueryParams);
         } else {
-            console.log("getPanelCriteria")
             let attrsMap = await getBlockAttrs(rootId);
             if (attrsMap && Object.keys(attrsMap).includes(BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY)) {
                 let json = attrsMap[BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY];
@@ -37,7 +36,7 @@ export class BacklinkFilterPanelAttributeService {
                 }
             }
             if (!documentPanelCriteria) {
-                queryParams = this.getDefaultQueryParams();
+                queryParams = defaultQueryParams;
                 documentPanelCriteria = new BacklinkPanelFilterCriteria();
                 documentPanelCriteria.backlinkPanelFilterViewExpand = SettingService.ins.SettingConfig.filterPanelViewExpand;
             }
@@ -59,9 +58,9 @@ export class BacklinkFilterPanelAttributeService {
         let lastCriteria = await this.getPanelCriteria(rootId);
         let lastCriteriaJson = "";
         if (lastCriteria) {
-            lastCriteriaJson = JSON.stringify(lastCriteria, setReplacer);
+            lastCriteriaJson = JSON.stringify(lastCriteria);
         }
-        let criteriaJson = JSON.stringify(criteria, setReplacer);
+        let criteriaJson = JSON.stringify(criteria);
         if (criteriaJson == lastCriteriaJson) {
             return;
         }
@@ -156,7 +155,7 @@ export class BacklinkFilterPanelAttributeService {
         let filterPanelCurDocDefBlockSortMethod = "typeAndContent";
         let filterPanelRelatedDefBlockSortMethod = "modifiedDesc";
         let filterPanelbacklinkDocumentSortMethod = "createdDesc";
-        if (!settingConfig) {
+        if (settingConfig) {
             backlinkBlockSortMethod = settingConfig.backlinkBlockSortMethod ? settingConfig.backlinkBlockSortMethod : backlinkBlockSortMethod;
             filterPanelCurDocDefBlockSortMethod = settingConfig.filterPanelCurDocDefBlockSortMethod ? settingConfig.filterPanelCurDocDefBlockSortMethod : filterPanelCurDocDefBlockSortMethod;
             filterPanelRelatedDefBlockSortMethod = settingConfig.filterPanelRelatedDefBlockSortMethod ? settingConfig.filterPanelRelatedDefBlockSortMethod : filterPanelRelatedDefBlockSortMethod;

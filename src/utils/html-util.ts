@@ -292,3 +292,21 @@ export function stringToDomArray(htmlString: string): Element[] {
     // 转换 NodeList 为数组返回
     return Array.from(container.children);
 }
+
+
+export function hasClosestByClassName(element: HTMLElement | null, className: string): HTMLElement | false {
+    // 检查传入的元素是否存在，并且是否具有指定的类名
+    if (element && element.classList.contains(className)) {
+        return element;
+    }
+
+    // 如果没有找到，检查父级元素
+    while (element && element.parentElement && element.tagName !== "BODY") {
+        element = element.parentElement;
+        if (element.classList.contains(className)) {
+            return element;
+        }
+    }
+
+    return false;
+}
