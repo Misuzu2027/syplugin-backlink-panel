@@ -310,3 +310,21 @@ export function hasClosestByClassName(element: HTMLElement | null, className: st
 
     return false;
 }
+
+
+export function hasClosestById(element: HTMLElement | null, id: string): HTMLElement | false {
+    // 检查传入的元素是否存在，并且是否具有指定的类名
+    if (element && element.id == id) {
+        return element;
+    }
+
+    // 如果没有找到，检查父级元素
+    while (element && element.parentElement && element.tagName !== "BODY") {
+        element = element.parentElement;
+        if (element.id == id) {
+            return element;
+        }
+    }
+
+    return false;
+}

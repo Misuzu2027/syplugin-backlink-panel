@@ -4,7 +4,7 @@ import { SettingService } from "@/service/setting/SettingService";
 import Instance from "@/utils/Instance";
 import { Menu } from "siyuan";
 import { BacklinkFilterPanelAttributeService, DOCUMENT_BOTTOM_SHOW_BACKLINK_FILTER_PANEL_ATTRIBUTE_KEY } from "@/service/setting/BacklinkPanelFilterCriteriaService";
-import { clearProtyleGutters, hasClosestByClassName } from "@/utils/html-util";
+import { clearProtyleGutters, hasClosestByClassName, hasClosestById } from "@/utils/html-util";
 import { generateGetDefBlockArraySql } from "../backlink/backlink-sql";
 import { sql } from "@/utils/api";
 import { isArrayEmpty } from "@/utils/array-util";
@@ -88,7 +88,9 @@ async function getDocumentBottomBacklinkPanelDisplay(docuemntContentElement: HTM
     // 必须是页签文档或悬浮窗才可以通过。防止 Dock 栏的插件渲染 protyle 加载反链。
     let isLayoutCenter = hasClosestByClassName(docuemntContentElement, "layout__center");
     let isPopoverBlock = hasClosestByClassName(docuemntContentElement, "block__popover");
-    if (!isLayoutCenter && !isPopoverBlock) {
+    // 搜索弹窗的预览也显示底部反链面板，fn__flex-1 search__preview protyle
+    let isSearchDialog = hasClosestById(docuemntContentElement, "searchPreview");
+    if (!isLayoutCenter && !isPopoverBlock && !isSearchDialog) {
         return false;
     }
 
