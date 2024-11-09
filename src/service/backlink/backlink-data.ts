@@ -8,7 +8,7 @@ import { CacheManager } from "@/config/CacheManager";
 import { SettingService } from "../setting/SettingService";
 import { Lute } from "siyuan";
 import { stringToDom } from "@/utils/html-util";
-import { NewNodeID } from "@/utils/siyuan-util";
+import { getQueryStrByBlock, NewNodeID } from "@/utils/siyuan-util";
 
 
 
@@ -568,6 +568,7 @@ function isBacklinkBlockValid(
     if (keywordStr) {
         let keywordArray = splitKeywordStringToArray(keywordStr.toLowerCase());
         let selfMarkdown = backlinkBlockNode.block.markdown;
+        let docContent = getQueryStrByBlock(backlinkBlockNode.documentBlock)
         let parentMarkdown = backlinkBlockNode.parentMarkdown;
         let headlineChildMarkdown = backlinkBlockNode.headlineChildMarkdown;
         let listItemChildMarkdown = "";
@@ -575,7 +576,7 @@ function isBacklinkBlockValid(
             listItemChildMarkdown = parentListItemTreeNode.getFilterMarkdown(parentListItemTreeNode.includeChildIdArray, parentListItemTreeNode.excludeChildIdArray);
         }
 
-        let backlinkConcatContent = selfMarkdown + parentMarkdown + headlineChildMarkdown + listItemChildMarkdown;
+        let backlinkConcatContent = selfMarkdown + docContent + parentMarkdown + headlineChildMarkdown + listItemChildMarkdown;
         backlinkConcatContent = removeMarkdownRefBlockStyle(backlinkConcatContent).toLowerCase();
         let containsAll = containsAllKeywords(backlinkConcatContent, keywordArray);
         if (!containsAll) {

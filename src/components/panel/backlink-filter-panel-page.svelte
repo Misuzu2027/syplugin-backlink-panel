@@ -616,6 +616,7 @@
         let keywordArray = splitKeywordStringToArray(
             queryParams.backlinkKeywordStr,
         );
+        highlightElementTextByCss(documentLiElement, keywordArray);
         delayedTwiceRefresh(() => {
             highlightElementTextByCss(protyleContentElement, keywordArray);
         }, 0);

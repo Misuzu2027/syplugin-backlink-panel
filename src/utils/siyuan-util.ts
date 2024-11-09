@@ -15,3 +15,11 @@ export function NewNodeID(): string {
   const formattedDate = now.toISOString().replace(/[-T:.Z]/g, '').slice(0, 14); // 格式化为 "YYYYMMDDHHMMSS"
   return `${formattedDate}-${randStr(7)}`;
 }
+
+export function getQueryStrByBlock(block: DefBlock | Block) {
+  if (!block) {
+    return "";
+  }
+  return block.content + " " + block.name + " " + block.alias + " " + block.memo + " " + block.tag;
+
+}
