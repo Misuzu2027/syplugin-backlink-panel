@@ -97,7 +97,7 @@ async function getDocumentBottomBacklinkPanelDisplay(docuemntContentElement: HTM
     let documentBottomDisplay = SettingService.ins.SettingConfig.documentBottomDisplay;
 
     if (documentBottomDisplay) {
-        let getDefBlockArraySql = generateGetDefBlockArraySql(rootId, null);
+        let getDefBlockArraySql = generateGetDefBlockArraySql({ rootId: rootId });
         let curDocDefBlockArray: DefBlock[] = await sql(getDefBlockArraySql);
         if (isArrayEmpty(curDocDefBlockArray)) {
             documentBottomDisplay = false;;

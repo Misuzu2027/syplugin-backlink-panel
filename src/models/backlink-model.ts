@@ -8,6 +8,8 @@ export interface IBacklinkFilterPanelDataQueryParams {
     queryParentDefBlock?: boolean;
     querrChildDefBlockForListItem?: boolean;
     queryChildDefBlockForHeadline?: boolean;
+    queryCurDocDefBlockRange: string;
+
 }
 
 
@@ -270,7 +272,7 @@ export class ListItemTreeNode {
 
 
 export interface IBacklinkFilterPanelData {
-    rootId: string;
+    rootId?: string;
     backlinkBlockNodeArray: IBacklinkBlockNode[];
     // 当前文档的定义块
     curDocDefBlockArray: DefBlock[];

@@ -4,7 +4,7 @@ import Instance from "@/utils/Instance";
 import { openTab } from "siyuan";
 import { CUSTOM_ICON_MAP } from "@/models/icon-constant";
 import { isStrBlank } from "@/utils/string-util";
-import { clearProtyleGutters } from "@/utils/html-util";
+import { clearProtyleGutters, getActiveTab } from "@/utils/html-util";
 
 
 const BACKLINK_TAB_PREFIX = "backlink_tab_"
@@ -16,10 +16,31 @@ export class TabService {
         return Instance.get(TabService);
     }
 
+    public init() {
+        EnvConfig.ins.plugin.addCommand({
+            langKey: "showDocumentBacklinkPanelTab",
+            langText: "显示当前文档反链筛选面板页签",
+            hotkey: "⌥⇧T",
+            editorCallback: (protyle: any) => {
+                // console.log(protyle, "editorCallback");
+                // let rootId = protyle.block.rootID;
+                let currentDocument: HTMLDivElement = getActiveTab();
+                if (!currentDocument) {
+                    return;
+                }
+                console.log("显示当前文档反链面板页签")
+
+                const docTitleElement = currentDocument.querySelector(".protyle-title");
+                let docTitle = currentDocument.querySelector("div.protyle-title__input").textContent;
+                let docId = docTitleElement.getAttribute("data-node-id");
+                TabService.ins.openBacklinkTab(docTitle, docId, null);
+            },
+        });
+    }
 
 
     public openBacklinkTab(docTitle: string, docId: string, focusBlockId: string) {
-        if (isStrBlank(docTitle) || isStrBlank(docId) ) {
+        if (isStrBlank(docTitle) || isStrBlank(docId)) {
             console.log("反链过滤面板插件 打开反链页签错误，参数缺失")
             return;
         }

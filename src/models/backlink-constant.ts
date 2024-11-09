@@ -65,6 +65,26 @@ export function CUR_DOC_DEF_BLOCK_SORT_METHOD_ELEMENT(): { name: string, value: 
     ];
 }
 
+export function CUR_DOC_DEF_BLOCK_TYPE_ELEMENT(): { name: string, value: string }[] {
+
+    return [
+        {
+            name: "当前文档定义块",
+            value: "curDocDefBlock",
+        },
+        {
+            name: "引用其他文档的定义块",
+            value: "curDocRefDefBlock",
+        },
+        {
+            name: "上面所有",
+            value: "all",
+        },
+    ];
+}
+
+
+
 export function RELATED_DEF_BLOCK_TYPE_ELEMENT(): { name: string, value: string }[] {
 
     return [

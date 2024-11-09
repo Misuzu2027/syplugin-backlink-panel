@@ -9,11 +9,13 @@ import { isStrBlank } from "@/utils/string-util";
  * @param queryParams 
  * @returns 
  */
-export function generateGetDefBlockArraySql(
-    rootId: string, focusBlockId: string
+export function generateGetDefBlockArraySql(paramObj: {
+    rootId: string, focusBlockId?: string, queryCurDocDefBlockRange?: string
+}
 ): string {
-    // let rootId = queryParams.rootId;
-    // let focusBlockId = queryParams.focusBlockId;
+    let rootId = paramObj.rootId;
+    let focusBlockId = paramObj.focusBlockId;
+    let queryCurDocDefBlockRange = paramObj.queryCurDocDefBlockRange;
     let sql = "";
     if (focusBlockId && focusBlockId != rootId) {
         sql = `
@@ -38,7 +40,7 @@ export function generateGetDefBlockArraySql(
         ) rc 
         WHERE  cte.id = rc.def_block_id
         GROUP BY cte.id, rc.ref_count
-        LIMIT 999999;
+        LIMIT 999999999;
         `
         /**
          * 其他简单写法。
@@ -47,17 +49,25 @@ export function generateGetDefBlockArraySql(
         INNER JOIN refs ON cte.id = refs.def_block_id AND refs.def_block_root_id = '${rootId}'
          */
     } else {
+        let refBlockIdFieldSql = `,CASE WHEN root_id != '${rootId}' THEN ( SELECT block_id FROM refs WHERE root_id = '${rootId}' AND def_block_id = blocks.id )  END AS refBlockId`;
+        let refWhereSql = `def_block_root_id = '${rootId}'`;
+        if (queryCurDocDefBlockRange == "curDocRefDefBlock") {
+            refWhereSql = ` root_id = '${rootId}'`;
+        } else if (queryCurDocDefBlockRange == "all") {
+            refWhereSql = `def_block_root_id = '${rootId}' OR root_id = '${rootId}'`;
+        }
         sql = `
         SELECT * ,(
             SELECT count(refs.def_block_id) FROM refs WHERE refs.def_block_id = blocks.id 
             ) AS refCount
+        ${queryCurDocDefBlockRange == "curDocDefBlock" ? "" : refBlockIdFieldSql}
         FROM blocks
         WHERE id in (
           SELECT DISTINCT def_block_id 
           FROM refs
-          WHERE def_block_root_id ='${rootId}'
+          WHERE ${refWhereSql}
         )
-        LIMIT 999999;
+        LIMIT 999999999;
         `
     }
 
@@ -98,7 +108,7 @@ export function generateGetParentDefBlockArraySql(
     FROM parent_block 
     WHERE 1 == 1 
     AND( ( type = 'i' ) OR ( type = 'h' AND markdown LIKE '%((%))%' ) )
-    LIMIT 9999999;
+    LIMIT 999999999;
     `
 
     /**
@@ -137,7 +147,7 @@ export function generateGetParenListItemtDefBlockArraySql(
         AND type NOT IN ('l', 'i') 
         AND markdown LIKE '%((%))%'
     GROUP BY parent_id
-    LIMIT 9999999;
+    LIMIT 999999999;
     `
 
     return cleanSpaceText(sql);
@@ -159,7 +169,7 @@ export function generateGetListItemtSubMarkdownArraySql(
         ${idInSql}
         AND type NOT IN ('l', 'i') 
     GROUP BY parent_id
-    LIMIT 9999999;
+    LIMIT 9999999999;
     `
 
     return cleanSpaceText(sql);
@@ -182,7 +192,7 @@ export function generateGetBacklinkBlockArraySql(
             FROM refs 
             WHERE 1 = 1 ${idInSql}
         )
-    LIMIT 999999999;
+    LIMIT 9999999999;
     `
     return cleanSpaceText(sql);
 }
@@ -263,7 +273,7 @@ export function generateGetHeadlineChildDefBlockArraySql(
     SELECT * 
     FROM child_block 
     WHERE 1 == 1  ${whereSql} 
-        LIMIT 9999999;
+        LIMIT 999999999;
     `
     return cleanSpaceText(sql);
 }
@@ -304,7 +314,7 @@ export function generateGetListItemChildBlockArraySql(
     SELECT * 
     FROM child_block 
     WHERE 1 == 1 AND type IN ( 'i' ) 
-        LIMIT 9999999;
+        LIMIT 999999999;
     `
     /**
      * todo 先这样，等后续过两个版本后，都有父级索引后再优化。
@@ -326,7 +336,7 @@ export function generateGetBlockArraySql(
     FROM blocks b
     WHERE 1 = 1 
     ${idInSql}
-    LIMIT 9999999;
+    LIMIT 999999999;
     `
     return cleanSpaceText(sql);
 }

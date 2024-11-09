@@ -567,6 +567,7 @@ function isBacklinkBlockValid(
 
     if (keywordStr) {
         let keywordArray = splitKeywordStringToArray(keywordStr.toLowerCase());
+        let selfMarkdown = backlinkBlockNode.block.markdown;
         let parentMarkdown = backlinkBlockNode.parentMarkdown;
         let headlineChildMarkdown = backlinkBlockNode.headlineChildMarkdown;
         let listItemChildMarkdown = "";
@@ -574,7 +575,7 @@ function isBacklinkBlockValid(
             listItemChildMarkdown = parentListItemTreeNode.getFilterMarkdown(parentListItemTreeNode.includeChildIdArray, parentListItemTreeNode.excludeChildIdArray);
         }
 
-        let backlinkConcatContent = parentMarkdown + headlineChildMarkdown + listItemChildMarkdown;
+        let backlinkConcatContent = selfMarkdown + parentMarkdown + headlineChildMarkdown + listItemChildMarkdown;
         backlinkConcatContent = removeMarkdownRefBlockStyle(backlinkConcatContent).toLowerCase();
         let containsAll = containsAllKeywords(backlinkConcatContent, keywordArray);
         if (!containsAll) {
@@ -627,6 +628,7 @@ export async function getBacklinkPanelData(
     const startTime = performance.now(); // 记录开始时间
     let rootId = queryParams.rootId;
     let focusBlockId = queryParams.focusBlockId;
+    let queryCurDocDefBlockRange = queryParams.queryCurDocDefBlockRange;
 
     let cacheResult = CacheManager.ins.getBacklinkPanelBaseData(rootId);;
     if (cacheResult) {
@@ -634,8 +636,9 @@ export async function getBacklinkPanelData(
         return cacheResult;
     }
 
+    console.log("initData rootId", rootId);
 
-    let getDefBlockArraySql = generateGetDefBlockArraySql(rootId, focusBlockId);
+    let getDefBlockArraySql = generateGetDefBlockArraySql({ rootId, focusBlockId, queryCurDocDefBlockRange });
     let curDocDefBlockArray: DefBlock[] = await sql(getDefBlockArraySql);
     if (isArrayEmpty(curDocDefBlockArray)) {
         let result: IBacklinkFilterPanelData = {
@@ -647,6 +650,26 @@ export async function getBacklinkPanelData(
         }
         return result;
     }
+    let docRefDefBlockIdArray: string[] = [];
+    for (const defBlock of curDocDefBlockArray) {
+        if (defBlock.root_id != rootId && defBlock.refBlockId) {
+            docRefDefBlockIdArray.push(defBlock.refBlockId);
+        }
+    }
+    if (isArrayNotEmpty(docRefDefBlockIdArray)) {
+        let getBlockArraySql = generateGetBlockArraySql(docRefDefBlockIdArray);
+        let curRefBlockArray: DefBlock[] = await sql(getBlockArraySql);
+        for (const tempBlock of curRefBlockArray) {
+            let refBlockId = tempBlock.id;
+            for (const defBlock of curDocDefBlockArray) {
+                if (defBlock.refBlockId == refBlockId) {
+                    defBlock.refBlockType = tempBlock.type;
+                }
+            }
+        }
+    }
+
+
 
     let defBlockIds = getBlockIds(curDocDefBlockArray);
     let backlinkBlockQueryParams: IBacklinkBlockQueryParams = {
@@ -677,8 +700,8 @@ export async function getBacklinkPanelData(
     let listItemBacklinkChildBlockArray: BacklinkChildBlock[] = await getListItemChildBlockArray(backlinkBlockQueryParams);
 
 
-    let backlinkPanelData = await buildBacklinkPanelData({
-        curDocDefBlockArray, backlinkBlockArray, headlinkBacklinkChildBlockArray, listItemBacklinkChildBlockArray, backlinkParentBlockArray,
+    let backlinkPanelData: IBacklinkFilterPanelData = await buildBacklinkPanelData({
+        rootId, curDocDefBlockArray, backlinkBlockArray, headlinkBacklinkChildBlockArray, listItemBacklinkChildBlockArray, backlinkParentBlockArray,
     });
 
     const endTime = performance.now(); // 记录结束时间
@@ -864,6 +887,7 @@ function getBlockIds(blockList: DefBlock[]): string[] {
 
 async function buildBacklinkPanelData(
     paramObj: {
+        rootId,
         curDocDefBlockArray: DefBlock[],
         backlinkBlockArray: BacklinkBlock[],
         headlinkBacklinkChildBlockArray: BacklinkChildBlock[],
@@ -1101,11 +1125,11 @@ async function buildBacklinkPanelData(
         node.documentBlock = docBlockInfo;
     }
 
-    let rootId = paramObj.curDocDefBlockArray[0].root_id;
+    // let rootId = paramObj.curDocDefBlockArray[0].root_id;
     let backlinkBlockNodeArray: IBacklinkBlockNode[] = Object.values(backlinkBlockMap);
 
     let backlinkPanelData: IBacklinkFilterPanelData = {
-        rootId,
+        rootId: paramObj.rootId,
         backlinkBlockNodeArray,
         curDocDefBlockArray: paramObj.curDocDefBlockArray,
         relatedDefBlockArray,
@@ -1295,7 +1319,12 @@ async function searchItemSortByContent(blockArray: DefBlock[]) {
 
 
 async function searchItemSortByTypeAndContent(blockArray: DefBlock[]) {
-    let ids = blockArray.map(item => item.id);
+    let ids: string[] = [];
+    for (const block of blockArray) {
+        let blockId = block.refBlockId ? block.refBlockId : block.id;
+        ids.push(blockId);
+    }
+
     let idMap: Map<string, number> = await getBatchBlockIdIndex(ids);
     blockArray.sort((a, b) => {
         let statusNum = getFilterStatusSortResult(a, b);
@@ -1305,8 +1334,10 @@ async function searchItemSortByTypeAndContent(blockArray: DefBlock[]) {
 
         let result = a.sort - b.sort;
         if (result == 0) {
-            let aIndex = idMap.get(a.id) || 0;
-            let bIndex = idMap.get(b.id) || 0;
+            let aBlockId = a.refBlockId ? a.refBlockId : a.id;
+            let bBlockId = b.refBlockId ? b.refBlockId : b.id;
+            let aIndex = idMap.get(aBlockId) || 0;
+            let bIndex = idMap.get(bBlockId) || 0;
             result = aIndex - bIndex;
         }
         if (result == 0) {

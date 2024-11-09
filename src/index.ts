@@ -11,6 +11,7 @@ import { openSettingsDialog } from "./components/setting/setting-util";
 import { DocumentService } from "./service/plugin/DocumentService";
 import { DockService } from "./service/plugin/DockServices";
 import { TopBarService } from "./service/plugin/TopBarService";
+import { TabService } from "./service/plugin/TabService";
 
 
 export default class PluginSample extends Plugin {
@@ -21,6 +22,7 @@ export default class PluginSample extends Plugin {
         await SettingService.ins.init()
         DocumentService.ins.init();
         DockService.ins.init();
+        TabService.ins.init();
         TopBarService.ins.init();
 
 

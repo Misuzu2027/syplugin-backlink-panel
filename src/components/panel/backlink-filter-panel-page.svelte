@@ -3,6 +3,7 @@
     import {
         BACKLINK_BLOCK_SORT_METHOD_ELEMENT,
         CUR_DOC_DEF_BLOCK_SORT_METHOD_ELEMENT,
+        CUR_DOC_DEF_BLOCK_TYPE_ELEMENT,
         RELATED_DEF_BLOCK_SORT_METHOD_ELEMENT,
         RELATED_DEF_BLOCK_TYPE_ELEMENT,
         RELATED_DOCMUMENT_SORT_METHOD_ELEMENT,
@@ -80,6 +81,7 @@
     let clickCount: number = 0;
     let clickTimeoutId: NodeJS.Timeout;
     let inputChangeTimeoutId: NodeJS.Timeout;
+    let queryCurDocDefBlockRange: string;
     // 用来保存当前页面反链渲染区的展开折叠状态
     let backlinkDocumentFoldMap: Map<string, boolean> = new Map();
     let backlinkProtyleItemFoldMap: Map<string, Set<string>> = new Map();
@@ -340,7 +342,6 @@
     }
 
     async function initData() {
-        // console.log("initData rootId", rootId);
         if (!rootId) {
             return;
         }
@@ -358,6 +359,7 @@
                     settingConfig.querrChildDefBlockForListItem,
                 queryChildDefBlockForHeadline:
                     settingConfig.queryChildDefBlockForHeadline,
+                queryCurDocDefBlockRange,
             };
         hideBacklinkProtyleBreadcrumb =
             settingConfig.hideBacklinkProtyleBreadcrumb;
@@ -365,9 +367,9 @@
         let backlinkPanelBaseDataTemp = await getBacklinkPanelData(
             backlinkPanelDataQueryParams,
         );
-        if (rootId != backlinkPanelBaseDataTemp.rootId) {
-            return;
-        }
+        // if (rootId != backlinkPanelBaseDataTemp.rootId) {
+        // return;
+        // }
         backlinkFilterPanelBaseData = backlinkPanelBaseDataTemp;
 
         if (
@@ -1199,6 +1201,22 @@ ${documentName}
         <div class="backlink-panel-filter">
             <div class="fn__flex">
                 <div class="filter-panel__sub_title">当前文档定义块：</div>
+                <select
+                    class="b3-select fn__flex-center"
+                    bind:value={queryCurDocDefBlockRange}
+                    on:change={initData}
+                    style="flex: 0.7;"
+                >
+                    {#each CUR_DOC_DEF_BLOCK_TYPE_ELEMENT() as element}
+                        <option
+                            value={element.value}
+                            selected={element.value == queryCurDocDefBlockRange}
+                        >
+                            {element.name}
+                        </option>
+                    {/each}
+                </select>
+                <span class="fn__space"></span>
                 <select
                     class="b3-select fn__flex-center"
                     bind:value={queryParams.filterPanelCurDocDefBlockSortMethod}
