@@ -2,6 +2,20 @@ import { isStrNotBlank } from "@/utils/string-util";
 
 
 export class SettingConfig {
+    // 插件设置
+    dockDisplay: Boolean;
+    documentBottomDisplay: boolean;
+    topBarDisplay: boolean;
+    // 缓存
+    cacheAfterResponseMs: number;
+    cacheExpirationTime: number;
+    usePraentIdIdx: boolean;
+    // 双击阈值
+    doubleClickTimeout: number;
+    // 文档底部反链面板宽度
+    documentBottomBacklinkPaddingWidth: number
+
+
     // 筛选面板
     filterPanelViewExpand: boolean;
     queryParentDefBlock: boolean;
@@ -13,6 +27,7 @@ export class SettingConfig {
 
 
     // 反链面板
+    docBottomBacklinkPanelViewExpand: boolean;
     pageSize: number;
     backlinkBlockSortMethod: BlockSortMethod;
     hideBacklinkProtyleBreadcrumb: boolean;
@@ -20,19 +35,7 @@ export class SettingConfig {
     // queryAllContentUnderHeadline: boolean;
 
 
-    // 插件设置
-    dockDisplay: Boolean;
-    documentBottomDisplay: boolean;
-    topBarDisplay: boolean;
-    // 缓存
-    cacheAfterResponseMs: number;
-    cacheExpirationTime: number;
-    usePraentIdIdx: boolean;
-    // 双击阈值
-    doubleClickTimeout: number;
 
-    // 文档底部反链面板宽度
-    documentBottomBacklinkPaddingWidth: number
 }
 
 

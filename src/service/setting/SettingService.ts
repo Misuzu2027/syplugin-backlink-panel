@@ -128,19 +128,6 @@ function setKeyValue(settingConfig, key: any, value: any) {
 
 function getDefaultSettingConfig() {
     let defaultConfig = new SettingConfig();
-    defaultConfig.queryParentDefBlock = true;
-    defaultConfig.querrChildDefBlockForListItem = true;
-    defaultConfig.queryChildDefBlockForHeadline = false;
-    defaultConfig.filterPanelCurDocDefBlockSortMethod = "typeAndContent";
-    defaultConfig.filterPanelRelatedDefBlockSortMethod = "modifiedDesc";
-    defaultConfig.filterPanelBacklinkDocumentSortMethod = "createdDesc";
-
-
-    defaultConfig.pageSize = 8;
-    defaultConfig.backlinkBlockSortMethod = "modifiedDesc";
-    defaultConfig.hideBacklinkProtyleBreadcrumb = false;
-    defaultConfig.defaultExpandedListItemLevel = 0;
-    // defaultConfig.queryAllContentUnderHeadline = false;
 
     defaultConfig.dockDisplay = true;
     defaultConfig.documentBottomDisplay = true;
@@ -152,6 +139,25 @@ function getDefaultSettingConfig() {
     defaultConfig.doubleClickTimeout = 0;
 
     defaultConfig.documentBottomBacklinkPaddingWidth = null;
+
+
+    // 筛选面板
+    defaultConfig.filterPanelViewExpand = false;
+    defaultConfig.queryParentDefBlock = true;
+    defaultConfig.querrChildDefBlockForListItem = true;
+    defaultConfig.queryChildDefBlockForHeadline = false;
+    defaultConfig.filterPanelCurDocDefBlockSortMethod = "typeAndContent";
+    defaultConfig.filterPanelRelatedDefBlockSortMethod = "modifiedDesc";
+    defaultConfig.filterPanelBacklinkDocumentSortMethod = "createdDesc";
+
+    // 反链面板
+    defaultConfig.docBottomBacklinkPanelViewExpand = true;
+    defaultConfig.pageSize = 8;
+    defaultConfig.backlinkBlockSortMethod = "modifiedDesc";
+    defaultConfig.hideBacklinkProtyleBreadcrumb = false;
+    defaultConfig.defaultExpandedListItemLevel = 0;
+    // defaultConfig.queryAllContentUnderHeadline = false;
+
 
 
     return defaultConfig;

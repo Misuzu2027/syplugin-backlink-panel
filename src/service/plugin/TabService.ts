@@ -46,6 +46,7 @@ export class TabService {
         }
         let backlinkFilterPanelPageSvelte: BacklinkFilterPanelPageSvelte;
 
+
         let tabId = BACKLINK_TAB_PREFIX + docId;
 
         EnvConfig.ins.plugin.addTab({
@@ -56,6 +57,7 @@ export class TabService {
                     props: {
                         rootId: docId,
                         focusBlockId: focusBlockId,
+                        panelBacklinkViewExpand: true,
                     }
                 });
 

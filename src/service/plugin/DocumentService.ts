@@ -164,11 +164,14 @@ async function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, roo
     let hrElement = document.createElement("hr");
     backlinkPanelBottomElement.appendChild(hrElement);
 
+    let docBottomBacklinkPanelViewExpand = SettingService.ins.SettingConfig.docBottomBacklinkPanelViewExpand
+
     let pageSvelte = new BacklinkFilterPanelPageSvelte({
         target: backlinkPanelBottomElement,
         props: {
             rootId: rootId,
             focusBlockId: null,
+            panelBacklinkViewExpand: docBottomBacklinkPanelViewExpand,
         }
     });
     backlinkPanelBottomElement.parentElement.addEventListener(

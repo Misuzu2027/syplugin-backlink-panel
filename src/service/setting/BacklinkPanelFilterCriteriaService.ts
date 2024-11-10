@@ -39,6 +39,7 @@ export class BacklinkFilterPanelAttributeService {
                 queryParams = defaultQueryParams;
                 documentPanelCriteria = new BacklinkPanelFilterCriteria();
                 documentPanelCriteria.backlinkPanelFilterViewExpand = SettingService.ins.SettingConfig.filterPanelViewExpand;
+                // documentPanelCriteria.backlinkPanelBacklinkViewExpand = SettingService.ins.SettingConfig.backlinkPanelViewExpand;;
             }
             CacheManager.ins.setBacklinkFilterPanelLastCriteria(rootId, documentPanelCriteria);
         }

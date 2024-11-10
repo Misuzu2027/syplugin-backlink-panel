@@ -337,5 +337,6 @@ export class BacklinkPanelFilterCriteria {
     // backlinkPanelBaseDataQueryParams: BacklinkPanelBaseDataQueryParams;
     queryParams: IPanelRednerFilterQueryParams;
     backlinkPanelFilterViewExpand: boolean;
+    // backlinkPanelBacklinkViewExpand: boolean;
 
 }

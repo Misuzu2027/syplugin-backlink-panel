@@ -88,14 +88,18 @@
 
     /* 控制页面元素的 */
     let panelFilterViewExpand: boolean = false;
-    let panelBacklinkViewExpand: boolean = true;
+    export let panelBacklinkViewExpand: boolean = true;
     let displayHintPanelBaseDataCacheUsage: boolean = false;
     let displayHintBacklinkBlockCacheUsage: boolean = false;
     let hideBacklinkProtyleBreadcrumb: boolean = false;
     let showSaveCriteriaInputBox: boolean = false;
     let saveCriteriaInputText: string = "";
 
-    $: updateLastCriteria(queryParams, panelFilterViewExpand);
+    $: updateLastCriteria(
+        queryParams,
+        panelFilterViewExpand,
+        // panelBacklinkViewExpand,
+    );
 
     onMount(async () => {
         doubleClickTimeout =
@@ -120,6 +124,7 @@
     function updateLastCriteria(
         queryParams: IPanelRednerFilterQueryParams,
         backlinkPanelFilterViewExpand: boolean,
+        // backlinkPanelBacklinkViewExpand: boolean,
     ) {
         if (!rootId || !queryParams) {
             return;
@@ -127,6 +132,7 @@
         let criteria: BacklinkPanelFilterCriteria = {
             queryParams,
             backlinkPanelFilterViewExpand,
+            // backlinkPanelBacklinkViewExpand,
         };
         BacklinkFilterPanelAttributeService.ins.updatePanelCriteria(
             rootId,
@@ -389,6 +395,8 @@
         queryParams = defaultPanelCriteria.queryParams;
         panelFilterViewExpand =
             defaultPanelCriteria.backlinkPanelFilterViewExpand;
+        // panelBacklinkViewExpand =
+        //     defaultPanelCriteria.backlinkPanelBacklinkViewExpand;
         queryParams.pageNum = 1;
 
         savedQueryParamMap =

@@ -10,6 +10,7 @@
 
     let rootId: string;
     let focusBlockId: string;
+    let panelBacklinkViewExpand: boolean = true;
 
     let mobileSidebarObserver: MutationObserver;
 
@@ -95,6 +96,10 @@
     </div>
 {:else}
     <div class="fn__flex-column">
-        <BacklinkFilterPanelPageSvelte {rootId} {focusBlockId} />
+        <BacklinkFilterPanelPageSvelte
+            {rootId}
+            {focusBlockId}
+            {panelBacklinkViewExpand}
+        />
     </div>
 {/if}
