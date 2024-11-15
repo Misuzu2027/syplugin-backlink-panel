@@ -2,7 +2,7 @@ import { isStrNotBlank } from "@/utils/string-util";
 
 
 export class SettingConfig {
-    // 插件设置
+    /* 插件设置 */
     dockDisplay: Boolean;
     documentBottomDisplay: boolean;
     topBarDisplay: boolean;
@@ -16,7 +16,7 @@ export class SettingConfig {
     documentBottomBacklinkPaddingWidth: number
 
 
-    // 筛选面板
+    /* 筛选面板 */
     filterPanelViewExpand: boolean;
     queryParentDefBlock: boolean;
     querrChildDefBlockForListItem: boolean;
@@ -24,9 +24,11 @@ export class SettingConfig {
     filterPanelCurDocDefBlockSortMethod: BlockSortMethod;
     filterPanelRelatedDefBlockSortMethod: BlockSortMethod;
     filterPanelBacklinkDocumentSortMethod: BlockSortMethod;
+    // 默认选中查看块
+    defaultSelectedViewBlock: boolean;
 
 
-    // 反链面板
+    /* 反链面板 */
     docBottomBacklinkPanelViewExpand: boolean;
     pageSize: number;
     backlinkBlockSortMethod: BlockSortMethod;

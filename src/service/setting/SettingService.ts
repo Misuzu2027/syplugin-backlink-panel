@@ -149,6 +149,8 @@ function getDefaultSettingConfig() {
     defaultConfig.filterPanelCurDocDefBlockSortMethod = "typeAndContent";
     defaultConfig.filterPanelRelatedDefBlockSortMethod = "modifiedDesc";
     defaultConfig.filterPanelBacklinkDocumentSortMethod = "createdDesc";
+    defaultConfig.defaultSelectedViewBlock = false;
+
 
     // 反链面板
     defaultConfig.docBottomBacklinkPanelViewExpand = true;

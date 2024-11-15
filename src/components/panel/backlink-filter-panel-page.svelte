@@ -404,6 +404,27 @@
                 rootId,
             );
 
+        if (settingConfig.defaultSelectedViewBlock) {
+            let viewBlockId = previousRootId;
+            if (previousFocusBlockId) {
+                viewBlockId = previousFocusBlockId;
+            }
+            let viewBlockExistBacklink = false;
+            backlinkFilterPanelBaseData.curDocDefBlockArray.forEach((item) => {
+                if (item.id == viewBlockId) {
+                    viewBlockExistBacklink = true;
+                    return;
+                }
+            });
+
+            if (viewBlockExistBacklink) {
+                if (!queryParams.includeRelatedDefBlockIds) {
+                    queryParams.includeRelatedDefBlockIds = new Set();
+                }
+                queryParams.includeRelatedDefBlockIds.add(viewBlockId);
+            }
+        }
+
         updateRenderData();
     }
 
@@ -624,6 +645,24 @@
         let keywordArray = splitKeywordStringToArray(
             queryParams.backlinkKeywordStr,
         );
+        // 去掉关键词前面存在的匹配符
+        for (let i = 0; i < keywordArray.length; i++) {
+            let keyword = keywordArray[i];
+            if (
+                keyword.startsWith("!-") ||
+                keyword.startsWith("！-") ||
+                keyword.startsWith("!-") ||
+                keyword.startsWith("！-")
+            ) {
+                keywordArray[i] = keyword.slice(2);
+            } else if (
+                keyword.startsWith("!") ||
+                keyword.startsWith("！") ||
+                keyword.startsWith("-")
+            ) {
+                keywordArray[i] = keyword.slice(1);
+            }
+        }
         highlightElementTextByCss(documentLiElement, keywordArray);
         delayedTwiceRefresh(() => {
             highlightElementTextByCss(protyleContentElement, keywordArray);

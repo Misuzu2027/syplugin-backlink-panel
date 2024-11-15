@@ -1,7 +1,7 @@
 import { sql, getBatchBlockIdIndex, getBacklinkDoc, getBacklink2 } from "@/utils/api";
 import { generateGetParentDefBlockArraySql, generateGetBacklinkListItemBlockArraySql, generateGetDefBlockArraySql, generateGetBlockArraySql, generateGetParenListItemtDefBlockArraySql, generateGetHeadlineChildDefBlockArraySql, generateGetBacklinkBlockArraySql, generateGetListItemChildBlockArraySql, generateGetListItemtSubMarkdownArraySql } from "./backlink-sql";
 import { IBacklinkFilterPanelData, IBacklinkBlockQueryParams, IBacklinkBlockNode, IBacklinkFilterPanelDataQueryParams, IPanelRenderBacklinkQueryParams, IBacklinkPanelRenderData, ListItemTreeNode } from "@/models/backlink-model";
-import { containsAllKeywords, countOccurrences, isStrBlank, isStrNotBlank, longestCommonSubstring, splitKeywordStringToArray } from "@/utils/string-util";
+import { containsAllKeywords, countOccurrences, isStrBlank, isStrNotBlank, longestCommonSubstring, matchKeywords, splitKeywordStringToArray } from "@/utils/string-util";
 import { intersectionSet, isArrayEmpty, isArrayNotEmpty, isSetEmpty, isSetNotEmpty, paginate } from "@/utils/array-util";
 import { DefinitionBlockStatus } from "@/models/backlink-constant";
 import { CacheManager } from "@/config/CacheManager";
@@ -566,7 +566,8 @@ function isBacklinkBlockValid(
     }
 
     if (keywordStr) {
-        let keywordArray = splitKeywordStringToArray(keywordStr.toLowerCase());
+        let keywordObj = parseSearchSyntax(keywordStr.toLowerCase());
+
         let selfMarkdown = backlinkBlockNode.block.markdown;
         let docContent = getQueryStrByBlock(backlinkBlockNode.documentBlock)
         let parentMarkdown = backlinkBlockNode.parentMarkdown;
@@ -577,11 +578,16 @@ function isBacklinkBlockValid(
         }
 
         let backlinkConcatContent = selfMarkdown + docContent + parentMarkdown + headlineChildMarkdown + listItemChildMarkdown;
+        let backlinkAllAnchorText = getMardownAnchorTextArray(backlinkConcatContent).join(" ");
+
         backlinkConcatContent = removeMarkdownRefBlockStyle(backlinkConcatContent).toLowerCase();
-        let containsAll = containsAllKeywords(backlinkConcatContent, keywordArray);
-        if (!containsAll) {
+        let matchText = matchKeywords(backlinkConcatContent, keywordObj.includeText, keywordObj.excludeText);
+        let matchAnchor = matchKeywords(backlinkAllAnchorText, keywordObj.includeAnchor, keywordObj.excludeAnchor);
+        console.log("matchText ", matchText, ",matchAnchor ", matchAnchor)
+        if (!matchText || !matchAnchor) {
             return false;
         }
+
     }
 
     if (backlinkCurDocDefBlockType) {
@@ -1585,6 +1591,21 @@ function formatDefBlockMap(defBlockArray: DefBlock[])
     return map;
 }
 
+function getMardownAnchorTextArray(markdown: string): string[] {
+    const regex = /\(\(\d{14}-\w{7}\s['"]([^'"]+)['"]\)\)/g;
+    let match;
+    let result: string[] = [];
+
+    while ((match = regex.exec(markdown)) !== null) {
+        let anchor = match[1];
+        if (anchor) {
+            result.push(anchor);
+        }
+    }
+
+    return result;
+}
+
 function removeMarkdownRefBlockStyle(input) {
 
     // regex = /\(\((\d{14}-\w{7})\s['"][^'"]+['"]\)\)/g;
@@ -1592,4 +1613,48 @@ function removeMarkdownRefBlockStyle(input) {
 
     // 使用正则表达式替换匹配的字符串
     return input.replace(regex, (_, p1) => p1);
+}
+
+
+function parseSearchSyntax(query: string): {
+    includeText: string[],
+    excludeText: string[],
+    includeAnchor: string[],
+    excludeAnchor: string[]
+} {
+    const includeText: string[] = [];
+    const excludeText: string[] = [];
+    const includeAnchor: string[] = [];
+    const excludeAnchor: string[] = [];
+
+    // 按空格拆分查询字符串
+    const terms = splitKeywordStringToArray(query);
+
+    for (const term of terms) {
+        if (
+            term.startsWith("!-") ||
+            term.startsWith("！-") ||
+            term.startsWith("-!") ||
+            term.startsWith("-！")
+        ) {
+            // 以 `!-` 开头的排除锚文本
+            excludeAnchor.push(term.slice(2));
+        } else if (term.startsWith("!") || term.startsWith("！")) {
+            // 以 `!` 开头的包含锚文本
+            includeAnchor.push(term.slice(1));
+        } else if (term.startsWith("-")) {
+            // 以 `-` 开头的排除普通文本
+            excludeText.push(term.slice(1));
+        } else {
+            // 普通文本包含项
+            includeText.push(term);
+        }
+    }
+
+    return {
+        includeText,
+        excludeText,
+        includeAnchor,
+        excludeAnchor,
+    };
 }

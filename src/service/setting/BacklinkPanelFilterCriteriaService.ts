@@ -21,16 +21,22 @@ export class BacklinkFilterPanelAttributeService {
         let documentPanelCriteria = CacheManager.ins.getBacklinkFilterPanelLastCriteria(rootId);
         let defaultQueryParams = this.getDefaultQueryParams();
         let queryParams;
+        // 存在缓存数据
         if (documentPanelCriteria) {
             documentPanelCriteria.queryParams.pageNum = 1;
             queryParams = mergeObjects(documentPanelCriteria.queryParams, defaultQueryParams);
         } else {
             let attrsMap = await getBlockAttrs(rootId);
+            // 存在保存的最后查询条件
             if (attrsMap && Object.keys(attrsMap).includes(BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY)) {
                 let json = attrsMap[BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY];
-                let parseObject = JSON.parse(json, setReviver) as BacklinkPanelFilterCriteria;
+                let parseObject = JSON.parse(json) as BacklinkPanelFilterCriteria;
                 if ("queryParams" in parseObject) {
                     documentPanelCriteria = parseObject;
+                    documentPanelCriteria.queryParams.includeRelatedDefBlockIds = new Set<string>();
+                    documentPanelCriteria.queryParams.excludeRelatedDefBlockIds = new Set<string>();
+                    documentPanelCriteria.queryParams.includeDocumentIds = new Set<string>();
+                    documentPanelCriteria.queryParams.excludeDocumentIds = new Set<string>();
                     queryParams = mergeObjects(documentPanelCriteria.queryParams, defaultQueryParams);
 
                 }

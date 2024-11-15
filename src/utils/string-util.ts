@@ -38,6 +38,30 @@ export function containsAllKeywords(
 }
 
 
+export function matchKeywords(
+    str: string,
+    includeKeywords: string[],
+    excludeKeywords: string[],
+): boolean {
+    // 检查每个包含关键词是否都出现在字符串中
+    for (const keyword of includeKeywords) {
+        if (!str.includes(keyword)) {
+            return false; // 如果某个包含关键词不在字符串中，返回 false
+        }
+    }
+
+    // 检查每个排除关键词是否都不出现在字符串中
+    for (const keyword of excludeKeywords) {
+        if (str.includes(keyword)) {
+            return false; // 如果某个排除关键词在字符串中，返回 false
+        }
+    }
+
+    return true; // 如果满足条件，返回 true
+}
+
+
+
 export function longestCommonSubstring(s1: string, s2: string): string {
     if (!s1 || !s2) {
         return "";

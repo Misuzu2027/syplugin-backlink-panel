@@ -30,6 +30,7 @@ export function getSettingTabArray(): TabProperty[] {
                 new ItemProperty({ key: "filterPanelRelatedDefBlockSortMethod", type: "select", name: "关联定义块排序方式", description: "", tips: "", options: getRelatedDefBlockSortMethodElement() }),
                 new ItemProperty({ key: "filterPanelBacklinkDocumentSortMethod", type: "select", name: "关联文档排序方式", description: "", tips: "", options: getRelatedDocmumentSortMethodElement() }),
 
+                new ItemProperty({ key: "defaultSelectedViewBlock", type: "switch", name: "默认选中查看块", description: "", tips: "" }),
             ]
 
         }),

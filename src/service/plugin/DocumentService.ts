@@ -282,7 +282,7 @@ function intervalSetNodePaddingBottom() {
             if (panelElement && protyleElement.style.paddingLeft != panelElement.style.paddingLeft) {
                 let paddingWidthPx = paddingWidthSize + "px";
                 if (paddingWidthSize == undefined || paddingWidthSize == null) {
-                    console.log("intervalSetNodePaddingBottom")
+                    // console.log("intervalSetNodePaddingBottom")
                     paddingWidthPx = protyleElement.style.paddingLeft;
                 }
                 panelElement.style.paddingLeft = paddingWidthPx;
