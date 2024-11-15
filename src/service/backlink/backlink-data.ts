@@ -643,7 +643,6 @@ export async function getBacklinkPanelData(
         return cacheResult;
     }
 
-    console.log("initData rootId", rootId);
 
     let getDefBlockArraySql = generateGetDefBlockArraySql({ rootId, focusBlockId, queryCurDocDefBlockRange });
     let curDocDefBlockArray: DefBlock[] = await sql(getDefBlockArraySql);
@@ -812,14 +811,17 @@ async function getListItemChildBlockArray(queryParams: IBacklinkBlockQueryParams
             let subMarkdownArray: BacklinkChildBlock[] = await sql(getSubMarkdownSql);
             subMarkdownArray = subMarkdownArray ? subMarkdownArray : [];
             let subMarkdownMap = new Map<string, string>();
+            let nameMap = new Map<string,string>();
             for (const parentListItemBlock of subMarkdownArray) {
                 subMarkdownMap.set(parentListItemBlock.parent_id, parentListItemBlock.subMarkdown);
+                nameMap.set(parentListItemBlock.parent_id, parentListItemBlock.concatName);
             }
             for (const itemBlock of listItemChildBlockArray) {
                 if (itemBlock.type == 'i') {
                     let subMarkdown = subMarkdownMap.get(itemBlock.id);
                     if (subMarkdown) {
                         itemBlock.subMarkdown = subMarkdown;
+                        itemBlock.concatName = nameMap.get(itemBlock.id);
                     }
                 }
             }

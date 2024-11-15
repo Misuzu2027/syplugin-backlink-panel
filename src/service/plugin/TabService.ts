@@ -76,6 +76,8 @@ export class TabService {
             resize() {
 
             },
+            update(){
+            }
         });
 
         openTab({
