@@ -159,17 +159,19 @@ export function generateGetListItemtSubMarkdownArraySql(
     if (isArrayEmpty(listItemIdArray)) {
         return "";
     }
-    let idInSql = generateAndInConditions("parent_id", listItemIdArray);
+    let idInSql = generateAndInConditions("sb.parent_id", listItemIdArray);
 
 
     let sql = `
-    SELECT parent_id,GROUP_CONCAT(markdown) as subMarkdown
-    FROM blocks sb 
+    SELECT sb.parent_id, GROUP_CONCAT( sb.markdown) AS subMarkdown , p.name || p.alias || p.memo as concatName
+    FROM blocks sb
+        LEFT JOIN blocks p on p.id = sb.parent_id
     WHERE 1 = 1 
         ${idInSql}
-        AND type NOT IN ('l', 'i') 
-    GROUP BY parent_id
-    LIMIT 9999999999;
+        AND sb.type NOT IN ( 'l', 'i' ) 
+    GROUP BY
+        sb.parent_id 
+        LIMIT 9999999999;
     `
 
     return cleanSpaceText(sql);

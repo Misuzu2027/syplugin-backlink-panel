@@ -58,6 +58,7 @@ export class ListItemTreeNode {
     type: string;
     parentIdPath: string;
     subMarkdown: string;
+    concatName: string;
     includeDefBlockIds: Set<string>;
     children: ListItemTreeNode[];
     excludeChildIdArray: string[];
@@ -209,7 +210,8 @@ export class ListItemTreeNode {
 
 
     getFilterMarkdown(includeChildIdArray: string[], excludeChildIdArray: string[]): string {
-        let markdown: string = isStrNotBlank(this.subMarkdown) ? this.subMarkdown : "";
+        let markdown: string = isStrNotBlank(this.subMarkdown) ? this.subMarkdown : ""
+        markdown += isStrNotBlank(this.concatName) ? this.concatName : "";
 
         for (const child of this.children) {
             if (isArrayNotEmpty(excludeChildIdArray) && excludeChildIdArray.includes(child.id)) {
@@ -259,6 +261,8 @@ export class ListItemTreeNode {
                 currentNode.type = item.type;
                 currentNode.parentIdPath = item.parentIdPath;
                 currentNode.subMarkdown = item.subMarkdown;
+                currentNode.concatName = item.concatName;
+
                 currentNode.includeDefBlockIds = new Set(getRefBlockId(currentNode.subMarkdown));
 
             }

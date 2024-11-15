@@ -649,15 +649,12 @@
         for (let i = 0; i < keywordArray.length; i++) {
             let keyword = keywordArray[i];
             if (
-                keyword.startsWith("!-") ||
-                keyword.startsWith("！-") ||
-                keyword.startsWith("!-") ||
-                keyword.startsWith("！-")
+                keyword.startsWith("-%") ||
+                keyword.startsWith("%-") 
             ) {
                 keywordArray[i] = keyword.slice(2);
             } else if (
-                keyword.startsWith("!") ||
-                keyword.startsWith("！") ||
+                keyword.startsWith("%") ||
                 keyword.startsWith("-")
             ) {
                 keywordArray[i] = keyword.slice(1);

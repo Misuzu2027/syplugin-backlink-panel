@@ -1641,7 +1641,7 @@ function parseSearchSyntax(query: string): {
         ) {
             // 以 `!-` 开头的排除锚文本
             excludeAnchor.push(term.slice(2));
-        } else if (term.startsWith("!") || term.startsWith("！")) {
+        } else if (term.startsWith("%")) {
             // 以 `!` 开头的包含锚文本
             includeAnchor.push(term.slice(1));
         } else if (term.startsWith("-")) {
