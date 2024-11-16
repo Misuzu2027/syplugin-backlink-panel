@@ -1,17 +1,39 @@
-import { sql, getBatchBlockIdIndex, getBacklinkDoc, getBacklink2 } from "@/utils/api";
-import { generateGetParentDefBlockArraySql, generateGetBacklinkListItemBlockArraySql, generateGetDefBlockArraySql, generateGetBlockArraySql, generateGetParenListItemtDefBlockArraySql, generateGetHeadlineChildDefBlockArraySql, generateGetBacklinkBlockArraySql, generateGetListItemChildBlockArraySql, generateGetListItemtSubMarkdownArraySql } from "./backlink-sql";
-import { IBacklinkFilterPanelData, IBacklinkBlockQueryParams, IBacklinkBlockNode, IBacklinkFilterPanelDataQueryParams, IPanelRenderBacklinkQueryParams, IBacklinkPanelRenderData, ListItemTreeNode } from "@/models/backlink-model";
-import { containsAllKeywords, countOccurrences, isStrBlank, isStrNotBlank, longestCommonSubstring, matchKeywords, splitKeywordStringToArray } from "@/utils/string-util";
+import { getBacklink2, getBacklinkDoc, getBatchBlockIdIndex, sql } from "@/utils/api";
+import {
+    generateGetBacklinkBlockArraySql,
+    generateGetBacklinkListItemBlockArraySql,
+    generateGetBlockArraySql,
+    generateGetDefBlockArraySql,
+    generateGetHeadlineChildDefBlockArraySql,
+    generateGetListItemChildBlockArraySql,
+    generateGetListItemtSubMarkdownArraySql,
+    generateGetParenListItemtDefBlockArraySql,
+    generateGetParentDefBlockArraySql
+} from "./backlink-sql";
+import {
+    IBacklinkBlockNode,
+    IBacklinkBlockQueryParams,
+    IBacklinkFilterPanelData,
+    IBacklinkFilterPanelDataQueryParams,
+    IBacklinkPanelRenderData,
+    IPanelRenderBacklinkQueryParams,
+    ListItemTreeNode
+} from "@/models/backlink-model";
+import {
+    containsAllKeywords,
+    countOccurrences,
+    isStrBlank,
+    isStrNotBlank,
+    longestCommonSubstring,
+    matchKeywords,
+    splitKeywordStringToArray
+} from "@/utils/string-util";
 import { intersectionSet, isArrayEmpty, isArrayNotEmpty, isSetEmpty, isSetNotEmpty, paginate } from "@/utils/array-util";
 import { DefinitionBlockStatus } from "@/models/backlink-constant";
 import { CacheManager } from "@/config/CacheManager";
 import { SettingService } from "../setting/SettingService";
-import { Lute } from "siyuan";
 import { stringToDom } from "@/utils/html-util";
 import { getQueryStrByBlock, NewNodeID } from "@/utils/siyuan-util";
-
-
-
 
 
 export async function getBacklinkPanelRenderData(
@@ -457,7 +479,8 @@ async function getBacklinkDocByApiOrCache(
     keyword = formatBacklinkDocApiKeyword(keyword);
     keyword = "";
 
-    let backlinks = CacheManager.ins.getBacklinkDocApiData(rootId, defId, refTreeId, keyword);;
+    let backlinks = CacheManager.ins.getBacklinkDocApiData(rootId, defId, refTreeId, keyword);
+    ;
     let result: IBacklinkCacheData = { backlinks: backlinks, usedCache: false };
     if (backlinks) {
         result.usedCache = true;
@@ -637,7 +660,8 @@ export async function getBacklinkPanelData(
     let focusBlockId = queryParams.focusBlockId;
     let queryCurDocDefBlockRange = queryParams.queryCurDocDefBlockRange;
 
-    let cacheResult = CacheManager.ins.getBacklinkPanelBaseData(rootId);;
+    let cacheResult = CacheManager.ins.getBacklinkPanelBaseData(rootId);
+    ;
     if (cacheResult) {
         cacheResult.userCache = true;
         return cacheResult;
@@ -676,7 +700,6 @@ export async function getBacklinkPanelData(
     }
 
 
-
     let defBlockIds = getBlockIds(curDocDefBlockArray);
     let backlinkBlockQueryParams: IBacklinkBlockQueryParams = {
         queryParentDefBlock: queryParams.queryParentDefBlock,
@@ -707,7 +730,12 @@ export async function getBacklinkPanelData(
 
 
     let backlinkPanelData: IBacklinkFilterPanelData = await buildBacklinkPanelData({
-        rootId, curDocDefBlockArray, backlinkBlockArray, headlinkBacklinkChildBlockArray, listItemBacklinkChildBlockArray, backlinkParentBlockArray,
+        rootId,
+        curDocDefBlockArray,
+        backlinkBlockArray,
+        headlinkBacklinkChildBlockArray,
+        listItemBacklinkChildBlockArray,
+        backlinkParentBlockArray,
     });
 
     const endTime = performance.now(); // 记录结束时间
@@ -811,7 +839,7 @@ async function getListItemChildBlockArray(queryParams: IBacklinkBlockQueryParams
             let subMarkdownArray: BacklinkChildBlock[] = await sql(getSubMarkdownSql);
             subMarkdownArray = subMarkdownArray ? subMarkdownArray : [];
             let subMarkdownMap = new Map<string, string>();
-            let nameMap = new Map<string,string>();
+            let nameMap = new Map<string, string>();
             for (const parentListItemBlock of subMarkdownArray) {
                 subMarkdownMap.set(parentListItemBlock.parent_id, parentListItemBlock.subMarkdown);
                 nameMap.set(parentListItemBlock.parent_id, parentListItemBlock.concatName);
@@ -1177,9 +1205,6 @@ export function getRefBlockId(markdown: string): string[] {
 }
 
 
-
-
-
 async function backlinkBlockNodeArraySort(
     backlinkBlockArray: IBacklinkBlockNode[],
     blockSortMethod: BlockSortMethod,
@@ -1197,7 +1222,11 @@ async function backlinkBlockNodeArraySort(
             ): number {
                 let aContent = a.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
                 let bContent = b.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
-                let result = aContent.localeCompare(bContent, undefined, { sensitivity: 'base', usage: 'sort', numeric: true });
+                let result = aContent.localeCompare(bContent, undefined, {
+                    sensitivity: 'base',
+                    usage: 'sort',
+                    numeric: true
+                });
                 if (result == 0) {
                     result = Number(b.block.updated) - Number(a.block.updated);
                 }
@@ -1211,7 +1240,11 @@ async function backlinkBlockNodeArraySort(
             ): number {
                 let aContent = a.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
                 let bContent = b.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
-                let result = bContent.localeCompare(aContent, undefined, { sensitivity: 'base', usage: 'sort', numeric: true });
+                let result = bContent.localeCompare(aContent, undefined, {
+                    sensitivity: 'base',
+                    usage: 'sort',
+                    numeric: true
+                });
                 if (result == 0) {
                     result = Number(b.block.updated) - Number(a.block.updated);
                 }
@@ -1300,7 +1333,6 @@ export async function defBlockArrayTypeAndKeywordFilter(
         }
     }
 }
-
 
 
 async function searchItemSortByContent(blockArray: DefBlock[]) {
@@ -1479,7 +1511,11 @@ function getDefBlockSortFun(contentBlockSortMethod: BlockSortMethod) {
 
                 let aContent = a.content.replace("<mark>", "").replace("</mark>", "");
                 let bContent = b.content.replace("<mark>", "").replace("</mark>", "");
-                let result = aContent.localeCompare(bContent, undefined, { sensitivity: 'base', usage: 'sort', numeric: true });
+                let result = aContent.localeCompare(bContent, undefined, {
+                    sensitivity: 'base',
+                    usage: 'sort',
+                    numeric: true
+                });
                 if (result == 0) {
                     result = Number(b.updated) - Number(a.updated);
                 }
@@ -1498,7 +1534,11 @@ function getDefBlockSortFun(contentBlockSortMethod: BlockSortMethod) {
 
                 let aContent = a.content.replace("<mark>", "").replace("</mark>", "");
                 let bContent = b.content.replace("<mark>", "").replace("</mark>", "");
-                let result = bContent.localeCompare(aContent, undefined, { sensitivity: 'base', usage: 'sort', numeric: true });
+                let result = bContent.localeCompare(aContent, undefined, {
+                    sensitivity: 'base',
+                    usage: 'sort',
+                    numeric: true
+                });
                 if (result == 0) {
                     result = Number(b.updated) - Number(a.updated);
                 }
@@ -1572,7 +1612,6 @@ function updateStaticAnchorMap(map: Map<string, Set<string>>, markdown: string) 
 }
 
 
-
 function calculateTotalPages(totalItems: number, itemsPerPage: number): number {
     if (itemsPerPage <= 0) {
         return 0;
@@ -1634,10 +1673,8 @@ function parseSearchSyntax(query: string): {
 
     for (const term of terms) {
         if (
-            term.startsWith("!-") ||
-            term.startsWith("！-") ||
-            term.startsWith("-!") ||
-            term.startsWith("-！")
+            term.startsWith("%-") ||
+            term.startsWith("-%")
         ) {
             // 以 `!-` 开头的排除锚文本
             excludeAnchor.push(term.slice(2));
