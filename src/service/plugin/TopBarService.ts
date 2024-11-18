@@ -32,7 +32,10 @@ export class TopBarService {
                     TabService.ins.openBacklinkTab(docTitle, docId, null);
                 }
             });
+
+            
         }
+
 
     }
 }

@@ -1,3 +1,4 @@
+import { isArrayEmpty, isArrayNotEmpty } from "./array-util";
 
 
 export class CacheUtil {
@@ -16,6 +17,13 @@ export class CacheUtil {
         this.cache.set(key, { value, expiry });
     }
 
+
+    setByPrefix(prefix: string, suffix: string, value: any, ttl: number) {
+        let key = prefix + suffix;
+        this.set(key, value, ttl);
+    }
+
+
     /**
      * 获取缓存
      * @param key 缓存键
@@ -32,6 +40,22 @@ export class CacheUtil {
         }
         return null;
     }
+
+    popByPrefix(prefix: string): any[] {
+        let result: any[] = [];
+        for (const [key, value] of this.cache.entries()) {
+            if (key.startsWith(prefix)) {
+                if (value.expiry > Date.now()) {
+                    result.push(value);
+                }
+                this.cache.delete(key);
+            }
+        }
+        return result;
+    }
+
+
+
     /**
      * 主动丢弃缓存
      * @param key 缓存键

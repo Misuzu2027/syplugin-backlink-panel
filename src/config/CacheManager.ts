@@ -2,6 +2,9 @@ import { BacklinkPanelFilterCriteria, IBacklinkFilterPanelData } from "@/models/
 import { CacheUtil, generateKey } from "@/utils/cache-util";
 import Instance from "@/utils/Instance";
 
+
+const DESTROY_BACKLINK_TAB_CACHE_KEY = "DESTORY_BACKLINK_TAB_CACHE_KEY"
+
 export class CacheManager {
 
 
@@ -14,6 +17,7 @@ export class CacheManager {
     private backlinkFilterPanelLastCriteriaCache: CacheUtil = new CacheUtil();
     private backlinkPanelSavedCriteriaCache: CacheUtil = new CacheUtil();
 
+    // 毫秒
     private dayTtl: number = 24 * 60 * 60 * 1000;
 
 
@@ -59,5 +63,14 @@ export class CacheManager {
     }
     public getBacklinkPanelSavedCriteria(rootId: string): any {
         return this.backlinkPanelSavedCriteriaCache.get(rootId);
+    }
+
+
+    public addBacklinkDestoryTabDocId(docId: string) {
+        this.backlinkPanelSavedCriteriaCache.setByPrefix(DESTROY_BACKLINK_TAB_CACHE_KEY, docId, docId, 2 * 3600 * 1000);
+    }
+
+    public getAndRemoveBacklinkDestoryTabDocIdArray(): string[] {
+        return this.backlinkPanelSavedCriteriaCache.popByPrefix(DESTROY_BACKLINK_TAB_CACHE_KEY);
     }
 }

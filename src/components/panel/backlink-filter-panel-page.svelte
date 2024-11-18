@@ -54,7 +54,7 @@
     import { SettingService } from "@/service/setting/SettingService";
     import { delayedTwiceRefresh } from "@/utils/timing-util";
 
-    export let rootId: string;
+    export let rootId: string = "20230624145642-eir9z5e";
     export let focusBlockId: string;
     // 用来监听变化
     let previousRootId: string;
@@ -85,6 +85,7 @@
     // 用来保存当前页面反链渲染区的展开折叠状态
     let backlinkDocumentFoldMap: Map<string, boolean> = new Map();
     let backlinkProtyleItemFoldMap: Map<string, Set<string>> = new Map();
+    let backlinkProtyleHeadingExpandMap: Map<string, boolean> = new Map();
 
     /* 控制页面元素的 */
     let panelFilterViewExpand: boolean = false;
@@ -331,6 +332,34 @@
         });
     }
 
+    function expandBacklinkHeadingMore(element: Element) {
+        if (!element) {
+            return;
+        }
+
+        let protyleWysiwygElement = element.querySelector(
+            "div.protyle-wysiwyg.protyle-wysiwyg--attr",
+        );
+
+        if (!protyleWysiwygElement) {
+            return;
+        }
+        let moreElement = protyleWysiwygElement.querySelector(
+            `div.protyle-breadcrumb__item`,
+        );
+        if (moreElement) {
+            let nextElement = moreElement.nextElementSibling;
+            while (
+                nextElement &&
+                !nextElement.classList.contains("protyle-breadcrumb__bar")
+            ) {
+                nextElement.classList.remove("fn__none");
+                nextElement = nextElement.nextElementSibling;
+            }
+            moreElement.remove();
+        }
+    }
+
     function openDocumentTab(rootId: string) {
         let actions: TProtyleAction[] = [Constants.CB_GET_CONTEXT];
 
@@ -533,7 +562,7 @@
         if (isArrayNotEmpty(editors)) {
             editors.forEach((editor) => {
                 // 清理前先保存列表项折叠状态。
-                updateBacklinkProtyleItemAndDocumentFoldMap(editor);
+                updateBacklinkDocumentAndProtyleItemAndHeadlineFoldMap(editor);
                 editor.destroy();
             });
         }
@@ -543,7 +572,7 @@
         }
     }
 
-    function updateBacklinkProtyleItemAndDocumentFoldMap(editor) {
+    function updateBacklinkDocumentAndProtyleItemAndHeadlineFoldMap(editor) {
         let documentLiElement =
             editor.protyle.contentElement.parentElement.previousElementSibling;
         let backlinkBlockId = documentLiElement.getAttribute(
@@ -558,9 +587,15 @@
             "div.protyle-wysiwyg.protyle-wysiwyg--attr",
         );
         let foldItemElementArray = [];
+        let expandHeadingMore: boolean = false;
         if (protyleWysiwygElement) {
             foldItemElementArray = protyleWysiwygElement.querySelectorAll(
                 `div[data-type="NodeListItem"].li[fold="1"]`,
+            );
+            expandHeadingMore = !Boolean(
+                protyleWysiwygElement.querySelector(
+                    `div.protyle-breadcrumb__item use`,
+                ),
             );
         }
         let foldSet = backlinkProtyleItemFoldMap.get(backlinkBlockId);
@@ -573,6 +608,8 @@
             foldSet.add(nodeId);
         }
         backlinkProtyleItemFoldMap.set(backlinkBlockId, foldSet);
+
+        backlinkProtyleHeadingExpandMap.set(backlinkBlockId, expandHeadingMore);
     }
 
     function batchCreateOfficialBacklinkProtyle(
@@ -598,7 +635,7 @@
                     break;
                 }
             }
-            let backlinkRootId = backlinkDoc.backlinkBlock.root_id;
+            let backlinkRootId = backlinkNode.root_id;
             // let backlinkRootId = backlinkDoc.blockPaths[0].id;
 
             let documentLiElement = createdDocumentLiElement(
@@ -638,32 +675,6 @@
     ) {
         let protyleContentElement = protyle.protyle.contentElement;
 
-        // 隐藏筛选条件中不相干的列表项，
-        hideOtherListItemElement(backlinkData, protyle);
-
-        // 高亮搜索内容
-        let keywordArray = splitKeywordStringToArray(
-            queryParams.backlinkKeywordStr,
-        );
-        // 去掉关键词前面存在的匹配符
-        for (let i = 0; i < keywordArray.length; i++) {
-            let keyword = keywordArray[i];
-            if (
-                keyword.startsWith("-%") ||
-                keyword.startsWith("%-") 
-            ) {
-                keywordArray[i] = keyword.slice(2);
-            } else if (
-                keyword.startsWith("%") ||
-                keyword.startsWith("-")
-            ) {
-                keywordArray[i] = keyword.slice(1);
-            }
-        }
-        highlightElementTextByCss(documentLiElement, keywordArray);
-        delayedTwiceRefresh(() => {
-            highlightElementTextByCss(protyleContentElement, keywordArray);
-        }, 0);
         let backlinkBlockId = backlinkData.backlinkBlock.id;
 
         // 是否折叠反链文档
@@ -674,17 +685,46 @@
         // 展开列表项，首先判断有没有历史记录，存在历史记录则用记录
         let foldIdSet = backlinkProtyleItemFoldMap.get(backlinkBlockId);
         if (foldIdSet) {
-            foldListItemNodeByIdSet(protyle.protyle.contentElement, foldIdSet);
+            foldListItemNodeByIdSet(protyleContentElement, foldIdSet);
         } else {
             let defaultExpandedListItemLevel =
                 SettingService.ins.SettingConfig.defaultExpandedListItemLevel;
             if (defaultExpandedListItemLevel > 0) {
                 expandListItemNodeByDepth(
-                    protyle.protyle.contentElement,
+                    protyleContentElement,
                     defaultExpandedListItemLevel,
                 );
             }
         }
+
+        // 展开大纲下的子内容
+        let expandHeadingMore =
+            backlinkProtyleHeadingExpandMap.get(backlinkBlockId);
+
+        if (expandHeadingMore) {
+            expandBacklinkHeadingMore(protyleContentElement);
+        }
+
+        // 隐藏筛选条件中不相干的列表项，
+        hideOtherListItemElement(backlinkData, protyle);
+
+        // 高亮搜索内容
+        let keywordArray = splitKeywordStringToArray(
+            queryParams.backlinkKeywordStr,
+        );
+        // 去掉关键词前面存在的匹配符
+        for (let i = 0; i < keywordArray.length; i++) {
+            let keyword = keywordArray[i];
+            if (keyword.startsWith("-%") || keyword.startsWith("%-")) {
+                keywordArray[i] = keyword.slice(2);
+            } else if (keyword.startsWith("%") || keyword.startsWith("-")) {
+                keywordArray[i] = keyword.slice(1);
+            }
+        }
+        highlightElementTextByCss(documentLiElement, keywordArray);
+        delayedTwiceRefresh(() => {
+            highlightElementTextByCss(protyleContentElement, keywordArray);
+        }, 100);
 
         // 主要防止手机端侧边栏上下滑动导致退回
         protyleContentElement.addEventListener("touchend", (event) => {
@@ -1245,7 +1285,7 @@ ${documentName}
     {#if backlinkFilterPanelRenderData && panelFilterViewExpand}
         <div class="backlink-panel-filter">
             <div class="fn__flex">
-                <div class="filter-panel__sub_title">当前文档定义块：</div>
+                <div class="filter-panel__sub_title">定义块范围：</div>
                 <select
                     class="b3-select fn__flex-center"
                     bind:value={queryCurDocDefBlockRange}
@@ -1457,15 +1497,47 @@ ${documentName}
                     {/each}
                 </div>
             </div>
-            <hr />
+            <!-- <hr /> -->
             <div>
                 <p>
                     <button
+                    style="margin-right: 12px;"
                         class="b3-button save-button"
                         on:click={() => {
                             showSaveCriteriaInputBox = true;
                         }}>保存当前条件</button
                     >
+                    {#if savedQueryParamMap}
+                        {#each savedQueryParamMap.keys() as name}
+                            <div class="tag optional" style="padding: 4px;">
+                                <span
+                                    class="block-content"
+                                    style="min-width:30px;"
+                                    on:click={() => {
+                                        hadnleSavedPanelCriteriaClick(name);
+                                    }}
+                                    on:keydown={handleKeyDownDefault}
+                                >
+                                    {name}
+                                </span>
+                                <span
+                                    class="block__icon"
+                                    style="padding: 2px 6px"
+                                    on:click={() => {
+                                        hadnleSavedPanelCriteriaDeleteClick(
+                                            name,
+                                        );
+                                    }}
+                                    on:keydown={handleKeyDownDefault}
+                                >
+                                    <svg style="width: 8px;"
+                                        ><use xlink:href="#iconClose"
+                                        ></use></svg
+                                    >
+                                </span>
+                            </div>
+                        {/each}
+                    {/if}
                 </p>
                 {#if showSaveCriteriaInputBox}
                     <div class="input-box">
@@ -1486,34 +1558,6 @@ ${documentName}
                             >
                         </div>
                     </div>
-                {/if}
-                {#if savedQueryParamMap}
-                    {#each savedQueryParamMap.keys() as name}
-                        <div class="tag optional" style="padding: 4px;">
-                            <span
-                                class="block-content"
-                                style="min-width:30px;"
-                                on:click={() => {
-                                    hadnleSavedPanelCriteriaClick(name);
-                                }}
-                                on:keydown={handleKeyDownDefault}
-                            >
-                                {name}
-                            </span>
-                            <span
-                                class="block__icon"
-                                style="padding: 2px 6px"
-                                on:click={() => {
-                                    hadnleSavedPanelCriteriaDeleteClick(name);
-                                }}
-                                on:keydown={handleKeyDownDefault}
-                            >
-                                <svg style="width: 8px;"
-                                    ><use xlink:href="#iconClose"></use></svg
-                                >
-                            </span>
-                        </div>
-                    {/each}
                 {/if}
             </div>
         </div>
@@ -1799,8 +1843,9 @@ ${documentName}
             var(--b3-transition),
             opacity 0.3s cubic-bezier(0, 0, 0.2, 1) 0ms;
         line-height: 14px;
-        min-height: 30px;
-        height: 35px;
+        min-height: 25px;
+        height: 30px;
+        border-radius: 10px;
     }
     .filter-panel__title:hover {
         color: var(--b3-theme-on-background);
@@ -1818,9 +1863,11 @@ ${documentName}
     .backlink-panel-filter:hover {
         /* border: 1px solid #ccc; */
         /* transform: translateY(-2px); 悬浮效果 */
-        box-shadow:
-            0 2px 4px rgba(0, 0, 0, 0.2),
-            /* 上边的阴影 */ 0 3px 10px rgba(0, 0, 0, 0.19); /* 四周的阴影 */
+        /* box-shadow: */
+        /* 上边的阴影 */
+        /* 0 2px 4px rgba(0, 0, 0, 0.2), */
+        /* 四周的阴影 */
+        /* 0 3px 10px rgba(0, 0, 0, 0.19); */
     }
     .defblock-list {
         min-height: 33px;
@@ -1859,10 +1906,11 @@ ${documentName}
         position: sticky;
         top: 0;
         text-align: center;
-        padding: 0px 0;
+        padding: 0px 0px;
         z-index: 2;
         background-color: var(--b3-theme-surface);
         margin-bottom: 10px;
+        border-radius: 10px;
     }
 
     .backlink-panel__header .b3-text-field:not(.b3-text-field:focus) {
@@ -1873,6 +1921,13 @@ ${documentName}
         padding: 3px 6px;
         font-size: 11px;
         cursor: pointer;
+    }
+
+    .save-button:hover {
+        box-shadow:
+            0 2px 5px -3px rgb(0 0 0 / 0.2),
+            0 5px 10px 1px rgb(0 0 0 / 0.14),
+            0 0px 14px 2px rgb(0 0 0 / 0.12);
     }
 
     .input-box {

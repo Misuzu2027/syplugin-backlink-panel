@@ -2,7 +2,7 @@
   "name": "syplugin-backlink-panel",
   "author": "Misuzu2027",
   "url": "https://github.com/Misuzu2027/syplugin-backlink-panel",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "minAppVersion": "3.1.4",
   "backends": [
    "all"

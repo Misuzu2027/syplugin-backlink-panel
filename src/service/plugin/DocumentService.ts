@@ -161,8 +161,8 @@ async function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, roo
     backlinkPanelBottomElement.setAttribute("data-root-id", rootId);
     backlinkPanelBottomElement.setAttribute("misuzu-backlink-panel-id", panelId)
 
-    let hrElement = document.createElement("hr");
-    backlinkPanelBottomElement.appendChild(hrElement);
+    // let hrElement = document.createElement("hr");
+    // backlinkPanelBottomElement.appendChild(hrElement);
 
     let docBottomBacklinkPanelViewExpand = SettingService.ins.SettingConfig.docBottomBacklinkPanelViewExpand
 

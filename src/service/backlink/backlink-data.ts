@@ -364,6 +364,7 @@ async function getBatchBacklinkDoc(
     const defIdRefTreeIdKeywordMap = new Map<string, string>();
     const backlinkBlockIdOrderMap = new Map<string, number>();
     const backlinkBlockNodeMap = new Map<string, IBacklinkBlockNode>();
+    const backlinkBlockParentNodeMap = new Map<string, IBacklinkBlockNode>();
     for (const [index, node] of backlinkBlockNodeArray.entries()) {
         let backlinkRootId = node.block.root_id;
         // 提取反链块中的共同关键字
@@ -385,7 +386,7 @@ async function getBatchBacklinkDoc(
         backlinkBlockIdOrderMap.set(node.block.id, index);
         backlinkBlockIdOrderMap.set(node.block.parent_id, index - 0.1);
         backlinkBlockNodeMap.set(node.block.id, node);
-        backlinkBlockNodeMap.set(node.block.parent_id, node);
+        backlinkBlockParentNodeMap.set(node.block.parent_id, node);
     }
 
     let usedCache = false;
@@ -411,15 +412,18 @@ async function getBatchBacklinkDoc(
     let backlinkDcoDataMap: Map<string, IBacklinkData> = new Map<string, IBacklinkData>();
 
     for (const backlink of allBacklinksArray) {
-        let lastBreadcrumbId: string = getBacklinkBlockId(backlink.dom);
-        if (backlinkDcoDataMap.has(lastBreadcrumbId)) {
+        let backlinkBlockId: string = getBacklinkBlockId(backlink.dom);
+        if (backlinkDcoDataMap.has(backlinkBlockId)) {
             continue;
         }
-        let backlinkBlockNode: IBacklinkBlockNode = backlinkBlockNodeMap.get(lastBreadcrumbId);
+        let backlinkBlockNode: IBacklinkBlockNode = backlinkBlockNodeMap.get(backlinkBlockId);
+        if (!backlinkBlockNode) {
+            backlinkBlockNode = backlinkBlockParentNodeMap.get(backlinkBlockId);
+        }
         if (backlinkBlockNode) {
             backlink.dom = backlink.dom.replace(/search-mark/g, "");
             backlink.backlinkBlock = backlinkBlockNode.block;
-            backlinkDcoDataMap.set(lastBreadcrumbId, backlink)
+            backlinkDcoDataMap.set(backlinkBlockId, backlink)
             if (backlinkBlockNode.parentListItemTreeNode) {
                 backlink.includeChildListItemIdArray = backlinkBlockNode.parentListItemTreeNode.includeChildIdArray;
                 backlink.excludeChildLisetItemIdArray = backlinkBlockNode.parentListItemTreeNode.excludeChildIdArray;
@@ -606,7 +610,6 @@ function isBacklinkBlockValid(
         backlinkConcatContent = removeMarkdownRefBlockStyle(backlinkConcatContent).toLowerCase();
         let matchText = matchKeywords(backlinkConcatContent, keywordObj.includeText, keywordObj.excludeText);
         let matchAnchor = matchKeywords(backlinkAllAnchorText, keywordObj.includeAnchor, keywordObj.excludeAnchor);
-        console.log("matchText ", matchText, ",matchAnchor ", matchAnchor)
         if (!matchText || !matchAnchor) {
             return false;
         }
@@ -1085,6 +1088,23 @@ async function buildBacklinkPanelData(
 
     let relatedDefBlockArray: DefBlock[] = [];
     let backlinkDocumentArray: DefBlock[] = [];
+
+    for (const defBlock of paramObj.curDocDefBlockArray) {
+        let blockId = defBlock.id;
+        let dnaymicAnchor = "";
+        let staticAnchor = "";
+        let dynamicAnchorSet = relatedDefBlockDynamicAnchorMap.get(blockId);
+        if (isSetNotEmpty(dynamicAnchorSet)) {
+            dnaymicAnchor = Array.from(dynamicAnchorSet).join(' ');
+        }
+        let staticAnchorSet = relatedDefBlockStaticAnchorMap.get(blockId);
+        if (isSetNotEmpty(staticAnchorSet)) {
+            staticAnchor = Array.from(staticAnchorSet).join(' ');
+        }
+        defBlock.dynamicAnchor = dnaymicAnchor
+        defBlock.staticAnchor = staticAnchor;
+    }
+
 
     for (const blockId of relatedDefBlockCountMap.keys()) {
         let blockCount = relatedDefBlockCountMap.get(blockId);
