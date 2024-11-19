@@ -595,7 +595,7 @@ function isBacklinkBlockValid(
     if (keywordStr) {
         let keywordObj = parseSearchSyntax(keywordStr.toLowerCase());
 
-        let selfMarkdown = backlinkBlockNode.block.markdown;
+        let selfMarkdown = getQueryStrByBlock(backlinkBlockNode.block);
         let docContent = getQueryStrByBlock(backlinkBlockNode.documentBlock)
         let parentMarkdown = backlinkBlockNode.parentMarkdown;
         let headlineChildMarkdown = backlinkBlockNode.headlineChildMarkdown;
@@ -841,18 +841,21 @@ async function getListItemChildBlockArray(queryParams: IBacklinkBlockQueryParams
         if (isStrNotBlank(getSubMarkdownSql)) {
             let subMarkdownArray: BacklinkChildBlock[] = await sql(getSubMarkdownSql);
             subMarkdownArray = subMarkdownArray ? subMarkdownArray : [];
+            let parentInAttrMap = new Map<string, string>();
             let subMarkdownMap = new Map<string, string>();
-            let nameMap = new Map<string, string>();
+            let subInAttrMap = new Map<string, string>();
             for (const parentListItemBlock of subMarkdownArray) {
+                parentInAttrMap.set(parentListItemBlock.parent_id, parentListItemBlock.parentInAttrConcat);
                 subMarkdownMap.set(parentListItemBlock.parent_id, parentListItemBlock.subMarkdown);
-                nameMap.set(parentListItemBlock.parent_id, parentListItemBlock.concatName);
+                subInAttrMap.set(parentListItemBlock.parent_id, parentListItemBlock.subInAttrConcat);
             }
             for (const itemBlock of listItemChildBlockArray) {
                 if (itemBlock.type == 'i') {
                     let subMarkdown = subMarkdownMap.get(itemBlock.id);
                     if (subMarkdown) {
+                        itemBlock.parentInAttrConcat = parentInAttrMap.get(itemBlock.id);
                         itemBlock.subMarkdown = subMarkdown;
-                        itemBlock.concatName = nameMap.get(itemBlock.id);
+                        itemBlock.subInAttrConcat = subInAttrMap.get(itemBlock.id)
                     }
                 }
             }
@@ -892,7 +895,7 @@ async function getParentBlockArray(queryParams: IBacklinkBlockQueryParams)
         subMarkdownArray = subMarkdownArray ? subMarkdownArray : [];
         let subMarkdownMap = new Map<string, string>();
         for (const parentListItemBlock of subMarkdownArray) {
-            subMarkdownMap.set(parentListItemBlock.parent_id, parentListItemBlock.subMarkdown);
+            subMarkdownMap.set(parentListItemBlock.parent_id, parentListItemBlock.subMarkdown + parentListItemBlock.inAttrConcat);
         }
         for (const parentBlock of parentBlockArray) {
             if (parentBlock.type == 'i') {
@@ -997,6 +1000,7 @@ async function buildBacklinkPanelData(
     for (const childBlock of paramObj.headlinkBacklinkChildBlockArray) {
         let markdown = childBlock.markdown;
         let backlnikChildDefBlockIdArray = getRefBlockId(markdown);
+        markdown += childBlock.subInAttrConcat;
         let backlinkBlockId = childBlock.parentIdPath.split("->")[0];
         let backlinkBlockNode = backlinkBlockMap[backlinkBlockId];
         if (backlinkBlockNode) {
@@ -1059,9 +1063,14 @@ async function buildBacklinkPanelData(
 
     for (const parentBlock of paramObj.backlinkParentBlockArray) {
         let markdown = parentBlock.markdown;
+        let inAttrConcat = parentBlock.inAttrConcat;
         if (parentBlock.type == 'i' && parentBlock.subMarkdown) {
             markdown = parentBlock.subMarkdown;
+            // console.log("backlinkParentBlockArray subMarkdown  ", markdown)
         }
+        markdown += inAttrConcat;
+        // console.log("backlinkParentBlockArray markdown  ", markdown)
+
         let backlnikParentDefBlockIdArray = getRefBlockId(markdown);
         let backlinkBlockId = parentBlock.childIdPath.split("->")[0];
         let backlinkBlockNode = backlinkBlockMap[backlinkBlockId];

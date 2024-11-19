@@ -20,6 +20,6 @@ export function getQueryStrByBlock(block: DefBlock | Block) {
   if (!block) {
     return "";
   }
-  return block.content + " " + block.name + " " + block.alias + " " + block.memo + " " + block.tag;
+  return block.markdown + " " + block.name + " " + block.alias + " " + block.memo + " " + block.tag;
 
 }

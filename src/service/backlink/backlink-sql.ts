@@ -95,24 +95,25 @@ export function generateGetParentDefBlockArraySql(
 
     let sql = `
     WITH RECURSIVE parent_block AS (
-    SELECT id, parent_id, markdown, type, CAST (id AS TEXT) AS childIdPath 
+    SELECT id, parent_id, name || alias || memo AS inAttrConcat, markdown, type, CAST (id AS TEXT) AS childIdPath 
     FROM  blocks 
     WHERE 1 = 1  ${backlinkIdInSql}
     UNION ALL 
-    SELECT t.id, t.parent_id, t.markdown, t.type, (p.childIdPath || '->' || t.id) AS childIdPath 
+    SELECT t.id, t.parent_id, t.name || t.alias || t.memo AS inAttrConcat, t.markdown, t.type, (p.childIdPath || '->' || t.id) AS childIdPath 
     FROM blocks t 
         INNER JOIN parent_block p ON t.id = p.parent_id
     WHERE t.type NOT IN ( 'd', 'c', 'm', 't', 'p', 'tb', 'html', 'video', 'audio', 'widget', 'iframe', 'query_embed' )
     ) 
-    SELECT id, parent_id, type, childIdPath, CASE WHEN type = 'i' THEN '' ELSE markdown END AS markdown
+    SELECT id, parent_id, type, childIdPath, inAttrConcat, CASE WHEN type = 'i' THEN '' ELSE markdown END AS markdown
     FROM parent_block 
     WHERE 1 == 1 
-    AND( ( type = 'i' ) OR ( type = 'h' AND markdown LIKE '%((%))%' ) )
+    AND( ( type = 'i' ) OR ( type = 'h' ) )
     LIMIT 999999999;
     `
 
     /**
-     *  
+     *  为了能够匹配所有父级标题关键字， ( type = 'h' AND markdown LIKE '%((%))%' )  去除 AND markdown LIKE '%((%))%',
+     *  反正标题也就那么几层，不会太影响数据量
      */
 
     /**
@@ -136,17 +137,22 @@ export function generateGetParenListItemtDefBlockArraySql(
 ): string {
 
     let backlinkParentBlockIds = queryParams.backlinkAllParentBlockIds;
-    let idInSql = generateAndInConditions("parent_id", backlinkParentBlockIds);
+    let idInSql = generateAndInConditions("sb.parent_id", backlinkParentBlockIds);
 
-
+/**
+ * 为了能够匹配所有父级列表项关键字，去除条件 AND markdown LIKE '%((%))%'
+ */
     let sql = `
-    SELECT parent_id,GROUP_CONCAT(markdown) as subMarkdown
-    FROM blocks sb 
+    SELECT 	
+        sb.parent_id,
+        GROUP_CONCAT( sb.name || sb.alias || sb.memo || p.name || p.alias || p.memo ) AS inAttrConcat,
+        GROUP_CONCAT( sb.markdown ) AS subMarkdown 
+    FROM blocks sb LEFT JOIN blocks p on p.id = sb.parent_id
     WHERE 1 = 1 
         ${idInSql}
-        AND type NOT IN ('l', 'i') 
-        AND markdown LIKE '%((%))%'
-    GROUP BY parent_id
+        AND sb.type NOT IN ('l', 'i') 
+        
+    GROUP BY sb.parent_id
     LIMIT 999999999;
     `
 
@@ -161,11 +167,15 @@ export function generateGetListItemtSubMarkdownArraySql(
     }
     let idInSql = generateAndInConditions("sb.parent_id", listItemIdArray);
 
-
+    /**
+     * subInAttrConcat 指的是叶子块中的内部属性
+     * parentInAttrConcat 指的是叶子块父级的列表项块的内部属性
+     */
     let sql = `
-    SELECT sb.parent_id, GROUP_CONCAT( sb.markdown) AS subMarkdown , p.name || p.alias || p.memo as concatName
-    FROM blocks sb
-        LEFT JOIN blocks p on p.id = sb.parent_id
+    SELECT sb.parent_id, GROUP_CONCAT( sb.markdown) AS subMarkdown ,
+    GROUP_CONCAT( sb.name || sb.alias ||sb.memo ) AS subInAttrConcat,
+	p.name || p.alias || p.memo AS parentInAttrConcat
+    FROM blocks sb LEFT JOIN blocks p on p.id = sb.parent_id
     WHERE 1 = 1 
         ${idInSql}
         AND sb.type NOT IN ( 'l', 'i' ) 
@@ -261,13 +271,13 @@ export function generateGetHeadlineChildDefBlockArraySql(
 
     let sql = `
     WITH RECURSIVE child_block AS (
-        SELECT id,parent_id,markdown,type,CAST ( id AS TEXT ) AS parentIdPath 
+        SELECT id, parent_id, (name || alias || memo) AS subInAttrConcat, markdown, type, CAST ( id AS TEXT ) AS parentIdPath 
         FROM blocks 
         WHERE 1 = 1 
             AND type = 'h'
             ${backlinkIdInSql}
     UNION ALL
-        SELECT t.id, t.parent_id, t.markdown, t.type, ( c.parentIdPath || '->' || t.id ) AS parentIdPath 
+        SELECT t.id, t.parent_id, (t.name || t.alias || t.memo) AS subInAttrConcat, t.markdown, t.type, ( c.parentIdPath || '->' || t.id ) AS parentIdPath 
         FROM blocks t
             INNER JOIN child_block c ON c.id = t.parent_id 
         WHERE t.type NOT IN ( 'd', 'i', 'tb', 'audio', 'widget', 'iframe', 'query_embed' ) 

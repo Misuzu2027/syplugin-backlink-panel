@@ -1,14 +1,16 @@
 
 type BacklinkParentBlock = DefBlock & {
     childIdPath: string;
+    inAttrConcat: string;
     subMarkdown: string;
 };
 
 
 type BacklinkChildBlock = DefBlock & {
     parentIdPath: string;
+    parentInAttrConcat: string;
     subMarkdown: string;
-    concatName: string;
+    subInAttrConcat: string;
 };
 
 

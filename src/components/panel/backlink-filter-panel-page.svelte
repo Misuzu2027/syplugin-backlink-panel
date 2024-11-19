@@ -1501,7 +1501,7 @@ ${documentName}
             <div>
                 <p>
                     <button
-                    style="margin-right: 12px;"
+                        style="margin-right: 12px;"
                         class="b3-button save-button"
                         on:click={() => {
                             showSaveCriteriaInputBox = true;
@@ -1777,6 +1777,7 @@ ${documentName}
         vertical-align: top; /* 垂直对齐 */
         font-size: 12px;
         white-space: nowrap; /* 禁止换行 */
+        opacity: 0.9;
     }
 
     .selected {
