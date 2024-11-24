@@ -23,13 +23,14 @@ type BacklinkBlock = DefBlock & {
 
 type DefBlock = Block & {
     refCount: number;
+    backlinkBlockIdConcat: string;
     dynamicAnchor: string;
     staticAnchor: string;
     selectionStatus: string;
     filterStatus: boolean;
     // 额外字段，用来保存引用的定义块所在的块id
-    refBlockId?: string;
-    refBlockType?: string;
+    // refBlockId?: string;
+    // refBlockType?: string;
 };
 
 type BlockSortMethod =

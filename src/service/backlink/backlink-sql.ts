@@ -29,17 +29,18 @@ export function generateGetDefBlockArraySql(paramObj: {
             INNER JOIN cte ON t.parent_id = cte.id
             WHERE t.root_id = '${rootId}'
         )
-        SELECT cte.*,rc.ref_count AS ref_count
+        SELECT cte.*,rc.refCount AS refCount, rc.backlinkBlockIdConcat
         FROM cte
         INNER JOIN refs ON cte.id = refs.def_block_id 
             AND refs.def_block_root_id = '${rootId}'
         LEFT JOIN (
-            SELECT def_block_id, COUNT(1) AS ref_count
+            SELECT def_block_id, COUNT(1) AS refCount,
+                GROUP_CONCAT( refs.block_id ) AS backlinkBlockIdConcat
             FROM refs
             GROUP BY def_block_id
         ) rc 
         WHERE  cte.id = rc.def_block_id
-        GROUP BY cte.id, rc.ref_count
+        GROUP BY cte.id, rc.refCount
         LIMIT 999999999;
         `
         /**
@@ -57,9 +58,11 @@ export function generateGetDefBlockArraySql(paramObj: {
             refWhereSql = `def_block_root_id = '${rootId}' OR root_id = '${rootId}'`;
         }
         sql = `
-        SELECT * ,(
-            SELECT count(refs.def_block_id) FROM refs WHERE refs.def_block_id = blocks.id 
-            ) AS refCount
+        SELECT * ,
+            (SELECT count(refs.def_block_id) FROM refs WHERE refs.def_block_id = blocks.id 
+            ) AS refCount,
+            ( SELECT GROUP_CONCAT( refs.block_id ) FROM refs WHERE refs.def_block_id = blocks.id 
+            ) AS backlinkBlockIdConcat
         ${queryCurDocDefBlockRange == "curDocDefBlock" ? "" : refBlockIdFieldSql}
         FROM blocks
         WHERE id in (
@@ -139,9 +142,9 @@ export function generateGetParenListItemtDefBlockArraySql(
     let backlinkParentBlockIds = queryParams.backlinkAllParentBlockIds;
     let idInSql = generateAndInConditions("sb.parent_id", backlinkParentBlockIds);
 
-/**
- * 为了能够匹配所有父级列表项关键字，去除条件 AND markdown LIKE '%((%))%'
- */
+    /**
+     * 为了能够匹配所有父级列表项关键字，去除条件 AND markdown LIKE '%((%))%'
+     */
     let sql = `
     SELECT 	
         sb.parent_id,
@@ -366,6 +369,33 @@ export function getCreateBlocksParentIdIdxSql() {
     `
     return cleanSpaceText(sql);
 }
+
+
+
+export function generateGetChildBlockArraySql(
+    rootId: string,
+    focusBlockId: string,
+
+): string {
+    let sql = `
+    WITH RECURSIVE cte AS (
+            SELECT *
+            FROM blocks
+            WHERE id = '${focusBlockId}' AND root_id = '${rootId}'
+            UNION ALL
+            SELECT t.*
+            FROM blocks t
+            INNER JOIN cte ON t.parent_id = cte.id
+            WHERE t.root_id = '${rootId}'
+            AND t.type NOT IN ( 'd', 'i', 'tb', 'audio', 'widget', 'iframe', 'query_embed' ) 
+    )
+    SELECT cte.*
+    FROM cte
+    LIMIT 999999999;
+    `
+    return cleanSpaceText(sql);
+}
+
 
 
 function cleanSpaceText(inputText: string): string {

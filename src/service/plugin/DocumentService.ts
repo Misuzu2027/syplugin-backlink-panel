@@ -59,11 +59,11 @@ async function handleSwitchProtyleOrLoadedProtyleStatic(e) {
 
     let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
     let rootId = e.detail.protyle.block.rootID;
+    // let focusBlockId = e.detail.protyle.block.id;
     if (!rootId) {
         return;
     }
-
-    await addBacklinkPanelToBottom(docuemntContentElement, rootId);
+    await refreshBacklinkPanelToBottom(docuemntContentElement, rootId, null);
 
 }
 
@@ -123,7 +123,7 @@ async function getDocumentBottomBacklinkPanelDisplay(docuemntContentElement: HTM
 }
 
 
-async function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, rootId: string) {
+async function refreshBacklinkPanelToBottom(docuemntContentElement: HTMLElement, rootId: string, focusBlockId: string) {
     if (!docuemntContentElement || !rootId) {
         return;
     }
@@ -132,7 +132,21 @@ async function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, roo
     if (!bottomDisplay) {
         destroyPanel(docuemntContentElement);
         return;
+    } else {
+        addBacklinkPanelToBottom(docuemntContentElement, rootId, focusBlockId);
     }
+}
+
+async function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, rootId: string, focusBlockId: string) {
+    if (!docuemntContentElement || !rootId) {
+        return;
+    }
+    // let bottomDisplay = await getDocumentBottomBacklinkPanelDisplay(docuemntContentElement, rootId);
+    // // 如果该文档不需要显示，则尝试删除该元素内部可能存在的底部反链。
+    // if (!bottomDisplay) {
+    //     destroyPanel(docuemntContentElement);
+    //     return;
+    // }
 
     let protyleWysiwygElement = docuemntContentElement.querySelector(".protyle-wysiwyg.protyle-wysiwyg--attr");
     let backlinkPanelBottomElement = docuemntContentElement.querySelector(".backlink-panel-document-bottom__area");
@@ -170,7 +184,7 @@ async function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, roo
         target: backlinkPanelBottomElement,
         props: {
             rootId: rootId,
-            focusBlockId: null,
+            focusBlockId: focusBlockId,
             panelBacklinkViewExpand: docBottomBacklinkPanelViewExpand,
         }
     });
@@ -234,7 +248,7 @@ function getDocumentBlockIconMenus(e) {
             let documentBottomDisplay = SettingService.ins.SettingConfig.documentBottomDisplay;
             if (documentBottomDisplay) {
                 let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
-                await addBacklinkPanelToBottom(docuemntContentElement, rootId);
+                await refreshBacklinkPanelToBottom(docuemntContentElement, rootId, null);
             } else {
                 handleDestroyProtyle(e);
             }
@@ -246,7 +260,7 @@ function getDocumentBlockIconMenus(e) {
             await BacklinkFilterPanelAttributeService.ins.updateDocumentBottomShowPanel(rootId, 1);
 
             let docuemntContentElement = e.detail.protyle.contentElement as HTMLElement;
-            await addBacklinkPanelToBottom(docuemntContentElement, rootId);
+            await refreshBacklinkPanelToBottom(docuemntContentElement, rootId, null);
         }
     });
     submenus.push({

@@ -3,6 +3,7 @@ import {
     generateGetBacklinkBlockArraySql,
     generateGetBacklinkListItemBlockArraySql,
     generateGetBlockArraySql,
+    generateGetChildBlockArraySql,
     generateGetDefBlockArraySql,
     generateGetHeadlineChildDefBlockArraySql,
     generateGetListItemChildBlockArraySql,
@@ -661,6 +662,7 @@ export async function getBacklinkPanelData(
     const startTime = performance.now(); // 记录开始时间
     let rootId = queryParams.rootId;
     let focusBlockId = queryParams.focusBlockId;
+    focusBlockId = null;
     let queryCurDocDefBlockRange = queryParams.queryCurDocDefBlockRange;
 
     let cacheResult = CacheManager.ins.getBacklinkPanelBaseData(rootId);
@@ -683,24 +685,24 @@ export async function getBacklinkPanelData(
         }
         return result;
     }
-    let docRefDefBlockIdArray: string[] = [];
-    for (const defBlock of curDocDefBlockArray) {
-        if (defBlock.root_id != rootId && defBlock.refBlockId) {
-            docRefDefBlockIdArray.push(defBlock.refBlockId);
-        }
-    }
-    if (isArrayNotEmpty(docRefDefBlockIdArray)) {
-        let getBlockArraySql = generateGetBlockArraySql(docRefDefBlockIdArray);
-        let curRefBlockArray: DefBlock[] = await sql(getBlockArraySql);
-        for (const tempBlock of curRefBlockArray) {
-            let refBlockId = tempBlock.id;
-            for (const defBlock of curDocDefBlockArray) {
-                if (defBlock.refBlockId == refBlockId) {
-                    defBlock.refBlockType = tempBlock.type;
-                }
-            }
-        }
-    }
+    // let docRefDefBlockIdArray: string[] = [];
+    // for (const defBlock of curDocDefBlockArray) {
+    //     if (defBlock.root_id != rootId && defBlock.refBlockId) {
+    //         docRefDefBlockIdArray.push(defBlock.refBlockId);
+    //     }
+    // }
+    // if (isArrayNotEmpty(docRefDefBlockIdArray)) {
+    //     let getBlockArraySql = generateGetBlockArraySql(docRefDefBlockIdArray);
+    //     let curRefBlockArray: DefBlock[] = await sql(getBlockArraySql);
+    //     for (const tempBlock of curRefBlockArray) {
+    //         let refBlockId = tempBlock.id;
+    //         for (const defBlock of curDocDefBlockArray) {
+    //             if (defBlock.refBlockId == refBlockId) {
+    //                 defBlock.refBlockType = tempBlock.type;
+    //             }
+    //         }
+    //     }
+    // }
 
 
     let defBlockIds = getBlockIds(curDocDefBlockArray);
@@ -965,12 +967,18 @@ async function buildBacklinkPanelData(
             dynamicAnchorMap: new Map<string, Set<string>>(),
             staticAnchorMap: new Map<string, Set<string>>(),
         };
+
+        let relatedDefBlockIdArray: string[] = [];
+        if (backlinkBlock.type == "query_embed") {
+            let result = await getBacklinkEmbedBlockInfo(backlinkBlock, paramObj.curDocDefBlockArray);
+            backlinkBlock.markdown = result.embedBlockmarkdown;
+            backlinkBlockNode.block.markdown = result.embedBlockmarkdown;
+            relatedDefBlockIdArray.push(...result.relatedDefBlockIdArray)
+        }
+
         let markdown = backlinkBlock.markdown;
-        // if (backlinkBlock.parentBlockType == 'i' && backlinkBlock.parentListItemMarkdown) {
-        //     markdown = backlinkBlock.parentListItemMarkdown;
-        //     content = backlinkBlock.parentListItemMarkdown;
-        // }
-        let relatedDefBlockIdArray = getRefBlockId(markdown);
+        relatedDefBlockIdArray.push(...getRefBlockId(markdown));
+
         for (const relatedDefBlockId of relatedDefBlockIdArray) {
             backlinkBlockNode.includeRelatedDefBlockIds.add(relatedDefBlockId)
             backlinkBlockNode.includeCurBlockDefBlockIds.add(relatedDefBlockId)
@@ -1150,7 +1158,9 @@ async function buildBacklinkPanelData(
             relatedDefBlockArray.push(refBlockInfo);
         } else {
             let refBlockInfo = {} as DefBlock;
-
+            if (isSetEmpty(dynamicAnchorSet) && isSetEmpty(staticAnchorSet)) {
+                continue;
+            }
             let dnaymicAnchor = "";
             let staticAnchor = "";
             let content = isSetNotEmpty(dynamicAnchorSet) ? dynamicAnchorSet.values().next().value : staticAnchorSet.values().next().value;
@@ -1217,6 +1227,43 @@ async function getBlockInfoMap(blockIds: string[]) {
     return blockMap;
 }
 
+async function getBacklinkEmbedBlockInfo(
+    backlinkBlock: BacklinkBlock,
+    curDocDefBlockArray: DefBlock[],
+): Promise<{ embedBlockmarkdown: string, relatedDefBlockIdArray: string[] }> {
+    let embedBlockmarkdown = "";
+    let relatedDefBlockIdArray: string[] = [];
+    for (const defBlock of curDocDefBlockArray) {
+        if (defBlock
+            && isStrNotBlank(defBlock.backlinkBlockIdConcat)
+            && defBlock.backlinkBlockIdConcat.includes(backlinkBlock.id)
+        ) {
+            let type = defBlock.type;
+            relatedDefBlockIdArray.push(defBlock.id);
+            embedBlockmarkdown += defBlock.markdown;
+            let embedChildblockArray = null;
+            if (type == 'd') {
+                embedChildblockArray = await sql(`SELECT * FROM blocks WHERE root_id = '${defBlock.id}'`);
+            } else if (type == 'h') {
+                let getChildBlockArraySql = generateGetChildBlockArraySql(defBlock.root_id, defBlock.id);
+                embedChildblockArray = await sql(getChildBlockArraySql);
+            } else if (type == 'query_embed') {
+                let embedSql = defBlock.markdown.replace("{{", "").replace("}}", "");
+                embedChildblockArray = await sql(embedSql);
+
+            }
+            if (isArrayNotEmpty(embedChildblockArray)) {
+                for (const block of embedChildblockArray) {
+                    embedBlockmarkdown += getQueryStrByBlock(block);
+                }
+            }
+        }
+    }
+    // backlinkBlock.markdown = embedBlockmarkdown;
+
+    return { embedBlockmarkdown, relatedDefBlockIdArray };
+}
+
 
 export function getRefBlockId(markdown: string): string[] {
     const matches = [];
@@ -1257,7 +1304,7 @@ async function backlinkBlockNodeArraySort(
                     numeric: true
                 });
                 if (result == 0) {
-                    result = Number(b.block.updated) - Number(a.block.updated);
+                    result = Number(a.block.created) - Number(b.block.created);
                 }
                 return result;
             };
@@ -1275,7 +1322,7 @@ async function backlinkBlockNodeArraySort(
                     numeric: true
                 });
                 if (result == 0) {
-                    result = Number(b.block.updated) - Number(a.block.updated);
+                    result = Number(b.block.created) - Number(a.block.created);
                 }
                 return result;
             };
@@ -1391,7 +1438,7 @@ async function searchItemSortByContent(blockArray: DefBlock[]) {
 async function searchItemSortByTypeAndContent(blockArray: DefBlock[]) {
     let ids: string[] = [];
     for (const block of blockArray) {
-        let blockId = block.refBlockId ? block.refBlockId : block.id;
+        let blockId = block.id;
         ids.push(blockId);
     }
 
@@ -1404,8 +1451,8 @@ async function searchItemSortByTypeAndContent(blockArray: DefBlock[]) {
 
         let result = a.sort - b.sort;
         if (result == 0) {
-            let aBlockId = a.refBlockId ? a.refBlockId : a.id;
-            let bBlockId = b.refBlockId ? b.refBlockId : b.id;
+            let aBlockId = a.id;
+            let bBlockId = b.id;
             let aIndex = idMap.get(aBlockId) || 0;
             let bIndex = idMap.get(bBlockId) || 0;
             result = aIndex - bIndex;

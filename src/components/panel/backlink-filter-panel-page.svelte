@@ -61,7 +61,7 @@
     let previousFocusBlockId: string;
     // 监听 rootId 变化
     $: if (rootId !== previousRootId || focusBlockId !== previousFocusBlockId) {
-        initData();
+        initBaseData();
     }
 
     /* 绑定 HTML 元素 */
@@ -112,7 +112,7 @@
             rootId !== previousRootId ||
             focusBlockId !== previousFocusBlockId
         ) {
-            initData();
+            initBaseData();
         }
 
         initEvent();
@@ -376,7 +376,7 @@
         }
     }
 
-    async function initData() {
+    async function initBaseData() {
         if (!rootId) {
             return;
         }
@@ -434,23 +434,26 @@
             );
 
         if (settingConfig.defaultSelectedViewBlock) {
-            let viewBlockId = previousRootId;
-            if (previousFocusBlockId) {
-                viewBlockId = previousFocusBlockId;
-            }
+            let selectBlockId = previousRootId;
+            // if (previousFocusBlockId) {
+            //     selectBlockId = previousFocusBlockId;
+            // }
             let viewBlockExistBacklink = false;
             backlinkFilterPanelBaseData.curDocDefBlockArray.forEach((item) => {
-                if (item.id == viewBlockId) {
+                if (item.id == selectBlockId) {
                     viewBlockExistBacklink = true;
                     return;
                 }
             });
 
             if (viewBlockExistBacklink) {
-                if (!queryParams.includeRelatedDefBlockIds) {
-                    queryParams.includeRelatedDefBlockIds = new Set();
-                }
-                queryParams.includeRelatedDefBlockIds.add(viewBlockId);
+                // 如果使用这个功能，必须先清空缓存。
+                queryParams.includeRelatedDefBlockIds = new Set<string>();
+                queryParams.excludeRelatedDefBlockIds = new Set<string>();
+                queryParams.includeDocumentIds = new Set<string>();
+                queryParams.excludeDocumentIds = new Set<string>();
+
+                queryParams.includeRelatedDefBlockIds.add(selectBlockId);
             }
         }
 
@@ -944,7 +947,7 @@ ${documentName}
 
     function clearCacheAndRefresh() {
         CacheManager.ins.deleteBacklinkPanelAllCache(rootId);
-        initData();
+        initBaseData();
     }
 
     function resetFilterQueryParametersToDefault() {
@@ -1289,7 +1292,7 @@ ${documentName}
                 <select
                     class="b3-select fn__flex-center"
                     bind:value={queryCurDocDefBlockRange}
-                    on:change={initData}
+                    on:change={initBaseData}
                     style="flex: 0.7;"
                 >
                     {#each CUR_DOC_DEF_BLOCK_TYPE_ELEMENT() as element}

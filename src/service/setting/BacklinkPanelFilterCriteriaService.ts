@@ -33,10 +33,7 @@ export class BacklinkFilterPanelAttributeService {
                 let parseObject = JSON.parse(json) as BacklinkPanelFilterCriteria;
                 if ("queryParams" in parseObject) {
                     documentPanelCriteria = parseObject;
-                    documentPanelCriteria.queryParams.includeRelatedDefBlockIds = new Set<string>();
-                    documentPanelCriteria.queryParams.excludeRelatedDefBlockIds = new Set<string>();
-                    documentPanelCriteria.queryParams.includeDocumentIds = new Set<string>();
-                    documentPanelCriteria.queryParams.excludeDocumentIds = new Set<string>();
+
                     queryParams = mergeObjects(documentPanelCriteria.queryParams, defaultQueryParams);
 
                 }
@@ -47,6 +44,10 @@ export class BacklinkFilterPanelAttributeService {
                 documentPanelCriteria.backlinkPanelFilterViewExpand = SettingService.ins.SettingConfig.filterPanelViewExpand;
                 // documentPanelCriteria.backlinkPanelBacklinkViewExpand = SettingService.ins.SettingConfig.backlinkPanelViewExpand;;
             }
+            queryParams.includeRelatedDefBlockIds = new Set<string>();
+            queryParams.excludeRelatedDefBlockIds = new Set<string>();
+            queryParams.includeDocumentIds = new Set<string>();
+            queryParams.excludeDocumentIds = new Set<string>();
             CacheManager.ins.setBacklinkFilterPanelLastCriteria(rootId, documentPanelCriteria);
         }
 
