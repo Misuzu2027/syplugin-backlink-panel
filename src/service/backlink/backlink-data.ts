@@ -1296,13 +1296,24 @@ async function backlinkBlockNodeArraySort(
                 a: IBacklinkBlockNode,
                 b: IBacklinkBlockNode,
             ): number {
-                let aContent = a.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
-                let bContent = b.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
-                let result = aContent.localeCompare(bContent, undefined, {
+                let aDocContent = a.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
+                let bDocContent = b.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
+                let result = aDocContent.localeCompare(bDocContent, undefined, {
                     sensitivity: 'base',
                     usage: 'sort',
                     numeric: true
                 });
+
+                if (result == 0) {
+                    let aContent = a.block.content.replace("<mark>", "").replace("</mark>", "");
+                    let bContent = b.block.content.replace("<mark>", "").replace("</mark>", "");
+                    result = aContent.localeCompare(bContent, undefined, {
+                        sensitivity: 'base',
+                        usage: 'sort',
+                        numeric: true
+                    });
+                }
+
                 if (result == 0) {
                     result = Number(a.block.created) - Number(b.block.created);
                 }
@@ -1314,13 +1325,24 @@ async function backlinkBlockNodeArraySort(
                 a: IBacklinkBlockNode,
                 b: IBacklinkBlockNode,
             ): number {
-                let aContent = a.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
-                let bContent = b.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
-                let result = bContent.localeCompare(aContent, undefined, {
+                let aDocContent = a.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
+                let bDocContent = b.documentBlock.content.replace("<mark>", "").replace("</mark>", "");
+                let result = bDocContent.localeCompare(aDocContent, undefined, {
                     sensitivity: 'base',
                     usage: 'sort',
                     numeric: true
                 });
+
+                if (result == 0) {
+                    let aContent = a.block.content.replace("<mark>", "").replace("</mark>", "");
+                    let bContent = b.block.content.replace("<mark>", "").replace("</mark>", "");
+                    result = bContent.localeCompare(aContent, undefined, {
+                        sensitivity: 'base',
+                        usage: 'sort',
+                        numeric: true
+                    });
+                }
+
                 if (result == 0) {
                     result = Number(b.block.created) - Number(a.block.created);
                 }

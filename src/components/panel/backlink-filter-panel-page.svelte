@@ -572,7 +572,7 @@
                 editor.destroy();
             });
         }
-        defalutEditors = [];
+        clearEditors();
         if (backlinkULElement) {
             backlinkULElement.innerHTML = "";
         }
@@ -1246,6 +1246,12 @@ ${documentName}
             return currentTab.editors;
         }
         return defalutEditors;
+    }
+    function clearEditors() {
+        if (currentTab) {
+            currentTab.editors = [];
+        }
+        defalutEditors = [];
     }
 </script>
 
