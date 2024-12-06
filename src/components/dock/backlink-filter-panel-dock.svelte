@@ -11,6 +11,7 @@
     let rootId: string;
     let focusBlockId: string;
     let panelBacklinkViewExpand: boolean = true;
+    let currentTab = null;
 
     let mobileSidebarObserver: MutationObserver;
 
@@ -92,7 +93,12 @@
         <div class="toolbar__text">{EnvConfig.ins.i18n.flatDocumentTree}</div>
     </div> -->
     <div class="">
-        <BacklinkFilterPanelPageSvelte {rootId} {focusBlockId} />
+        <BacklinkFilterPanelPageSvelte
+            {rootId}
+            {focusBlockId}
+            {panelBacklinkViewExpand}
+            {currentTab}
+        />
     </div>
 {:else}
     <div class="fn__flex-column">
@@ -100,6 +106,7 @@
             {rootId}
             {focusBlockId}
             {panelBacklinkViewExpand}
+            {currentTab}
         />
     </div>
 {/if}

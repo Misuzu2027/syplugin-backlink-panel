@@ -43,9 +43,10 @@
     import {
         Constants,
         openMobileFileById,
-        openTab,
         Protyle,
         TProtyleAction,
+        Custom,
+        openTab,
     } from "siyuan";
     import { onDestroy, onMount } from "svelte";
     import { getBlockTypeIconHref } from "@/utils/icon-util";
@@ -54,8 +55,9 @@
     import { SettingService } from "@/service/setting/SettingService";
     import { delayedTwiceRefresh } from "@/utils/timing-util";
 
-    export let rootId: string = "20230624145642-eir9z5e";
+    export let rootId: string;
     export let focusBlockId: string;
+    export let currentTab: Custom;
     // 用来监听变化
     let previousRootId: string;
     let previousFocusBlockId: string;
@@ -76,7 +78,7 @@
     let savedQueryParamMap: Map<string, IPanelRednerFilterQueryParams>;
 
     /* 全局使用 */
-    let editors: Protyle[] = [];
+    let defalutEditors: Protyle[] = [];
     let doubleClickTimeout: number = 0;
     let clickCount: number = 0;
     let clickTimeoutId: NodeJS.Timeout;
@@ -562,22 +564,33 @@
     }
 
     function clearBacklinkProtyleList() {
-        if (isArrayNotEmpty(editors)) {
-            editors.forEach((editor) => {
+        let editorsTemp = getEditors();
+        if (isArrayNotEmpty(editorsTemp)) {
+            editorsTemp.forEach((editor) => {
                 // 清理前先保存列表项折叠状态。
                 updateBacklinkDocumentAndProtyleItemAndHeadlineFoldMap(editor);
                 editor.destroy();
             });
         }
-        editors = [];
+        defalutEditors = [];
         if (backlinkULElement) {
             backlinkULElement.innerHTML = "";
         }
     }
 
-    function updateBacklinkDocumentAndProtyleItemAndHeadlineFoldMap(editor) {
+    function updateBacklinkDocumentAndProtyleItemAndHeadlineFoldMap(
+        editor: Protyle,
+    ) {
+        if (!editor || !editor.protyle || !editor.protyle.contentElement) {
+            return;
+        }
         let documentLiElement =
             editor.protyle.contentElement.parentElement.previousElementSibling;
+
+        if (!documentLiElement) {
+            return;
+        }
+
         let backlinkBlockId = documentLiElement.getAttribute(
             "data-backlink-block-id",
         );
@@ -589,7 +602,7 @@
         let protyleWysiwygElement = editor.protyle.contentElement.querySelector(
             "div.protyle-wysiwyg.protyle-wysiwyg--attr",
         );
-        let foldItemElementArray = [];
+        let foldItemElementArray;
         let expandHeadingMore: boolean = false;
         if (protyleWysiwygElement) {
             foldItemElementArray = protyleWysiwygElement.querySelectorAll(
@@ -667,7 +680,9 @@
             afterCreateBacklinkProtyle(backlinkDoc, documentLiElement, editor);
 
             editor.protyle.notebookId = notebookId;
-            editors.push(editor);
+
+            let editorsTemp = getEditors();
+            editorsTemp.push(editor);
         }
     }
 
@@ -1224,6 +1239,13 @@ ${documentName}
 
     function handleKeyDownDefault(event) {
         console.log(event.key);
+    }
+
+    function getEditors(): Protyle[] {
+        if (currentTab) {
+            return currentTab.editors;
+        }
+        return defalutEditors;
     }
 </script>
 

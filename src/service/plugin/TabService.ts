@@ -29,7 +29,7 @@ export class TabService {
                 if (!currentDocument) {
                     return;
                 }
-                console.log("显示当前文档反链面板页签")
+                // console.log("显示当前文档反链面板页签")
 
                 const docTitleElement = currentDocument.querySelector(".protyle-title");
                 let docTitle = currentDocument.querySelector("div.protyle-title__input").textContent;
@@ -63,6 +63,7 @@ export class TabService {
                         rootId: docId,
                         focusBlockId: focusBlockId,
                         panelBacklinkViewExpand: true,
+                        currentTab: this,
                     }
                 });
 
@@ -84,6 +85,7 @@ export class TabService {
             update() {
             }
         });
+
     }
 
 
