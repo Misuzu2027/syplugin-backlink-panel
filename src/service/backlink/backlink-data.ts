@@ -666,7 +666,7 @@ export async function getBacklinkPanelData(
     let queryCurDocDefBlockRange = queryParams.queryCurDocDefBlockRange;
 
     let cacheResult = CacheManager.ins.getBacklinkPanelBaseData(rootId);
-    ;
+    
     if (cacheResult) {
         cacheResult.userCache = true;
         return cacheResult;

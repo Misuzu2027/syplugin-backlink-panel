@@ -110,26 +110,15 @@ export function generateGetParentDefBlockArraySql(
     SELECT id, parent_id, type, childIdPath, inAttrConcat, CASE WHEN type = 'i' THEN '' ELSE markdown END AS markdown
     FROM parent_block 
     WHERE 1 == 1 
-    AND( ( type = 'i' ) OR ( type = 'h' ) )
+    AND type IN ( 'i', 'h', 'b', 's' )
     LIMIT 999999999;
     `
 
     /**
-     *  为了能够匹配所有父级标题关键字， ( type = 'h' AND markdown LIKE '%((%))%' )  去除 AND markdown LIKE '%((%))%',
-     *  反正标题也就那么几层，不会太影响数据量
+     * 2025-01-19 跟进 v3.1.20 中，反链面板会展示父级是超级块、引述块 
+     * AND( ( type = 'i' ) OR ( type = 'h' ) ) 改为 AND type IN ( 'i', 'h', 'b', 's' )
      */
 
-    /**
-     * 在 Navicat 测试来看，
-     *1. AND type in ('h','i') 
-     * 效率高,
-     * 用下面这种可以减少返回数据，在数据量大并且伺服的时候更有有优势。
-2.    AND (type = 'h' AND markdown LIKE '%((%))%') 
-    OR (type = 'i' AND parentListItemMarkdown LIKE '%((%))%')
-    最终打算替换成正则表达式，速度可能跟2差不多，但是更准确
-3. AND markdown REGEXP '\\(\\((\\d{14}-[a-zA-Z0-9]{7})\\s''[^'']+''\\)\\)'
-4. 存在较多反链块的时候，性能极差，决定分离
-     */
 
     return cleanSpaceText(sql);
 }
