@@ -33,9 +33,8 @@ export class BacklinkFilterPanelAttributeService {
                 let parseObject = JSON.parse(json) as BacklinkPanelFilterCriteria;
                 if ("queryParams" in parseObject) {
                     documentPanelCriteria = parseObject;
-
+                    parseObject.queryParams.backlinkKeywordStr = "";
                     queryParams = mergeObjects(documentPanelCriteria.queryParams, defaultQueryParams);
-
                 }
             }
             if (!documentPanelCriteria) {
@@ -75,8 +74,12 @@ export class BacklinkFilterPanelAttributeService {
 
         CacheManager.ins.setBacklinkFilterPanelLastCriteria(rootId, criteria);
 
+        // 持久缓存删除 关键字。
+        let criteriaCloned : BacklinkPanelFilterCriteria= JSON.parse(criteriaJson);
+        criteriaCloned.queryParams.backlinkKeywordStr = "";
+        let criteriaClonedJson = JSON.stringify(criteriaCloned);
         let attrs = {};
-        attrs[BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY] = criteriaJson;
+        attrs[BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY] = criteriaClonedJson;
         setBlockAttrs(rootId, attrs);
     }
 

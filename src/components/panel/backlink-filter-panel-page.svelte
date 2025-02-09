@@ -54,6 +54,8 @@
     import { BacklinkFilterPanelAttributeService } from "@/service/setting/BacklinkPanelFilterCriteriaService";
     import { SettingService } from "@/service/setting/SettingService";
     import { delayedTwiceRefresh } from "@/utils/timing-util";
+    import { getBlockIsFolded } from "@/utils/api";
+    import { getOpenTabActionByZoomIn } from "@/utils/siyuan-util";
 
     export let rootId: string;
     export let focusBlockId: string;
@@ -164,10 +166,19 @@
         const target = event.currentTarget as HTMLElement;
         if (event.ctrlKey) {
             let rootId = target.getAttribute("data-node-id");
-            openDocumentTab(rootId);
+            let blockId = target.getAttribute("data-backlink-block-id");
+            openBlockTab(rootId, blockId);
             return;
         }
         toggleBacklinkDocument(target);
+    }
+
+    function contextmenuBacklinkDocumentLiElement(event: MouseEvent) {
+        const target = event.currentTarget as HTMLElement;
+        let rootId = target.getAttribute("data-node-id");
+        let blockId = target.getAttribute("data-backlink-block-id");
+        openBlockTab(rootId, blockId);
+        return;
     }
 
     function toggleBacklinkDocument(documentLiElement: HTMLElement) {
@@ -195,22 +206,63 @@
             .classList.remove("b3-list-item__arrow--open");
     }
 
-    function expandAllBacklinkDocument() {
+    function expandAllBacklinkDocument(event: MouseEvent) {
+        if (event) {
+        }
+        // 左键点击展开所有文档
+        // if (event.button === 0) {
         let documentLiElementArray = backlinkULElement.querySelectorAll(
             "li.list-item__document-name",
         );
         for (const documentLiElement of documentLiElementArray) {
             expandBacklinkDocument(documentLiElement as HTMLElement);
         }
+        return;
+        // }
     }
 
-    function collapseAllBacklinkDocument() {
+    function expandAllBacklinkListItemNode(event: MouseEvent) {
+        if (event) {
+        }
+        // 右键点击展开所有反链中的列表块
+        // if (event.button === 2) {
+        let backlinkProtyleElementArray =
+            backlinkULElement.querySelectorAll("div.protyle");
+
+        for (const backlinkProtyle of backlinkProtyleElementArray) {
+            expandAllListItemNode(backlinkProtyle as HTMLElement);
+        }
+        return;
+        // }
+    }
+
+    function collapseAllBacklinkDocument(event: MouseEvent) {
+        if (event) {
+        }
+        // 左键点击折叠所有文档
+        // if (event.button === 0) {
         let documentLiElementArray = backlinkULElement.querySelectorAll(
             "li.list-item__document-name",
         );
         for (const documentLiElement of documentLiElementArray) {
             collapseBacklinkDocument(documentLiElement as HTMLElement);
         }
+        // }
+    }
+
+    function collapseAllBacklinkListItemNode(event: MouseEvent) {
+        if (event) {
+        }
+        // 右键点击折叠所有反链中的列表块
+        // if (event.button === 2) {
+        let backlinkProtyleElementArray =
+            backlinkULElement.querySelectorAll("div.protyle");
+
+        for (const backlinkProtyle of backlinkProtyleElementArray) {
+            collapseAllListItemNode(backlinkProtyle as HTMLElement);
+        }
+        return;
+        // }
     }
 
     function clickExpandAllListItemNode(event: MouseEvent) {
@@ -376,6 +428,38 @@
                 },
             });
         }
+    }
+
+    async function openBlockTab(rootId: string, blockId: string) {
+        let zoomIn = await getBlockIsFolded(blockId);
+        let actions: TProtyleAction[] = getOpenTabActionByZoomIn(zoomIn);
+
+        if (EnvConfig.ins.isMobile) {
+            openMobileFileById(EnvConfig.ins.app, blockId, actions);
+        } else {
+            openDestopBlockTab({ zoomIn, actions, rootId, blockId });
+        }
+    }
+
+    async function openDestopBlockTab(params: {
+        zoomIn: boolean;
+        actions: TProtyleAction[];
+        rootId: string;
+
+        blockId: string;
+    }) {
+        if (params.rootId == params.blockId) {
+            // actions = actions.filter((item) => item !== Constants.CB_GET_HL);
+            params.actions = [Constants.CB_GET_FOCUS, Constants.CB_GET_SCROLL];
+        }
+
+        openTab({
+            app: EnvConfig.ins.app,
+            doc: {
+                id: params.blockId,
+                action: params.actions,
+            },
+        });
     }
 
     async function initBaseData() {
@@ -876,6 +960,7 @@
         if (docAriaText) {
             docAriaText = docAriaText.substring(0, 100);
         }
+        
 
         documentLiElement.innerHTML = `
 <span style="padding-left: 4px;margin-right: 2px" class="b3-list-item__toggle b3-list-item__toggle--hl">
@@ -891,6 +976,14 @@ ${documentName}
         documentLiElement.addEventListener("click", (event: MouseEvent) => {
             clickBacklinkDocumentLiElement(event);
         });
+
+        documentLiElement.addEventListener(
+            "contextmenu",
+            (event: MouseEvent) => {
+                contextmenuBacklinkDocumentLiElement(event);
+            },
+        );
+
         documentLiElement.addEventListener("mousedown", (event: MouseEvent) => {
             if (event.button !== 1) {
                 return;
@@ -1683,9 +1776,8 @@ ${documentName}
                 <span
                     class="block__icon b3-tooltips b3-tooltips__sw"
                     aria-label="展开所有文档"
-                    on:click={() => {
-                        expandAllBacklinkDocument();
-                    }}
+                    on:click={expandAllBacklinkDocument}
+                    on:contextmenu={expandAllBacklinkListItemNode}
                     on:keydown={handleKeyDownDefault}
                 >
                     <svg><use xlink:href="#iconExpand"></use></svg>
@@ -1694,9 +1786,8 @@ ${documentName}
                 <span
                     class="block__icon b3-tooltips b3-tooltips__sw"
                     aria-label="折叠所有文档"
-                    on:click={() => {
-                        collapseAllBacklinkDocument();
-                    }}
+                    on:click={collapseAllBacklinkDocument}
+                    on:contextmenu={collapseAllBacklinkListItemNode}
                     on:keydown={handleKeyDownDefault}
                 >
                     <svg><use xlink:href="#iconContract"></use></svg>

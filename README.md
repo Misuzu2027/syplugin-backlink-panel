@@ -70,7 +70,7 @@
 
   ![image-20240903111620-7h2q3bn](asset/image-20240903111620-7h2q3bn.png)​
 
-  除了这个总设置外，可在特定文档中设置是否显示底部反链。点击`文档块标 - 插件 - 反链筛选面板`​快捷选择，本质是通过添加自定义属性「document-bottom-show-backlink-filter-panel」选择特定文档是否显示底部反链区域：
+  除了这个总设置外，可在特定文档中设置是否显示底部反链。点击`文档块标 - 插件 - 反链过滤面板`​快捷选择，本质是通过添加自定义属性「document-bottom-show-backlink-filter-panel」选择特定文档是否显示底部反链区域：
 
   1. `恢复默认`​：删除自定义属性「document-bottom-show-backlink-filter-panel」，该文档是否显示底部反链与插件设置保持一致
   2. `始终显示文档底部反链`​：添加自定义属性「document-bottom-show-backlink-filter-panel」，值为1，无论插件设置如何，该文档都显示底部反链

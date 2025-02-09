@@ -130,13 +130,15 @@ function getDefaultSettingConfig() {
     let defaultConfig = new SettingConfig();
 
     defaultConfig.dockDisplay = true;
-    defaultConfig.documentBottomDisplay = true;
+    defaultConfig.documentBottomDisplay = false;
+    defaultConfig.flashCardBottomDisplay = false;
     defaultConfig.topBarDisplay = true;
 
     defaultConfig.cacheAfterResponseMs = -1;
     defaultConfig.cacheExpirationTime = 5 * 60;
     defaultConfig.usePraentIdIdx = false;
     defaultConfig.doubleClickTimeout = 0;
+
 
     defaultConfig.documentBottomBacklinkPaddingWidth = null;
 

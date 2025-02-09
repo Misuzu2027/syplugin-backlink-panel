@@ -83,7 +83,12 @@ async function getDocumentBottomBacklinkPanelDisplay(docuemntContentElement: HTM
     // 如果是闪卡界面，不显示底部反链面板
     let isCardBlock = hasClosestByClassName(docuemntContentElement, "card__block")
     if (isCardBlock) {
-        return false;
+        let flashCardBottomDisplay = SettingService.ins.SettingConfig.flashCardBottomDisplay;
+        if (flashCardBottomDisplay) {
+            return true;
+        } else {
+            return false;
+        }
     }
     // 必须是页签文档或悬浮窗才可以通过。防止 Dock 栏的插件渲染 protyle 加载反链。
     let isLayoutCenter = hasClosestByClassName(docuemntContentElement, "layout__center");
@@ -230,7 +235,7 @@ function hadnleClickEditorTitleIcon(e) {
     (e.detail.menu as Menu).addItem({
         icon: "BacklinkPanelFilter",
         type: "submenu",
-        label: "反链筛选面板",
+        label: "反链过滤面板",
         submenu: getDocumentBlockIconMenus(e)
     });
 }

@@ -1,3 +1,4 @@
+import { Constants, TProtyleAction } from "siyuan";
 
 // 用于生成随机字符串
 function randStr(length: number): string {
@@ -22,4 +23,20 @@ export function getQueryStrByBlock(block: DefBlock | Block) {
   }
   return block.markdown + " " + block.name + " " + block.alias + " " + block.memo + " " + block.tag;
 
+}
+
+export function getOpenTabActionByZoomIn(zoomIn: boolean): TProtyleAction[] {
+  let actions: TProtyleAction[] = zoomIn
+      ? [
+          Constants.CB_GET_HL,
+          Constants.CB_GET_FOCUS,
+          Constants.CB_GET_ALL,
+      ]
+      : [
+          Constants.CB_GET_HL,
+          // Constants.CB_GET_FOCUS,
+          Constants.CB_GET_CONTEXT,
+          Constants.CB_GET_ROOTSCROLL,
+      ];
+  return actions;
 }

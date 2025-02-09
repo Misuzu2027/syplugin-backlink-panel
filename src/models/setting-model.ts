@@ -4,7 +4,11 @@ import { isStrNotBlank } from "@/utils/string-util";
 export class SettingConfig {
     /* 插件设置 */
     dockDisplay: Boolean;
+    // 文档底部显示反链面板
     documentBottomDisplay: boolean;
+    // 闪卡底部显示反链面板
+    flashCardBottomDisplay: boolean;
+    // 顶部栏显示页签按钮
     topBarDisplay: boolean;
     // 缓存
     cacheAfterResponseMs: number;
@@ -12,8 +16,10 @@ export class SettingConfig {
     usePraentIdIdx: boolean;
     // 双击阈值
     doubleClickTimeout: number;
+
     // 文档底部反链面板宽度
     documentBottomBacklinkPaddingWidth: number
+
 
 
     /* 筛选面板 */

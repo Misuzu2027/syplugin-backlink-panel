@@ -12,6 +12,7 @@ export function getSettingTabArray(): TabProperty[] {
             key: "plugin-setting", name: "插件设置", iconKey: "iconPlugin", props: [
                 new ItemProperty({ key: "dockDisplay", type: "switch", name: "显示反链面板 Dock", description: "", tips: "" }),
                 new ItemProperty({ key: "documentBottomDisplay", type: "switch", name: "文档底部显示反链面板", description: "", tips: "" }),
+                new ItemProperty({ key: "flashCardBottomDisplay", type: "switch", name: "闪卡底部显示反链面板", description: "", tips: "" }),
                 new ItemProperty({ key: "cacheAfterResponseMs", type: "number", name: "启用缓存门槛（毫秒）", description: "当接口响应时间超过这个数，就会把这次查询结果存入缓存，-1 不开启缓存", tips: "", min: -1 }),
                 new ItemProperty({ key: "cacheExpirationTime", type: "number", name: "缓存过期时间（秒）", description: "", tips: "缓存数据失效时间", min: -1, }),
                 new ItemProperty({ key: "doubleClickTimeout", type: "number", name: "双击时间阈值(毫秒)", description: "", tips: "", min: 0, }),
