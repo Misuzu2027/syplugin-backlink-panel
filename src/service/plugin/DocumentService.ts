@@ -50,6 +50,11 @@ export class DocumentService {
 
         intervalSetNodePaddingBottom();
     }
+
+    public destory() {
+        destroyAllPanel();
+        destoryIntervalSetNodePaddingBottom();
+    }
 }
 
 async function handleSwitchProtyleOrLoadedProtyleStatic(e) {
@@ -190,6 +195,7 @@ async function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, roo
         props: {
             rootId: rootId,
             focusBlockId: focusBlockId,
+            currentTab: null,
             panelBacklinkViewExpand: docBottomBacklinkPanelViewExpand,
         }
     });
@@ -199,6 +205,10 @@ async function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, roo
             clearProtyleGutters(backlinkPanelBottomElement as HTMLElement);
         },
     );
+    backlinkPanelBottomElement.addEventListener("mouseover", (event: MouseEvent) => {
+        event.stopPropagation();
+    })
+
 
     backlinkPanelPageSvelteMap.set(panelId, pageSvelte);
     documentProtyleElementMap.set(panelId, protyleWysiwygElement as HTMLElement);
@@ -226,6 +236,20 @@ function destroyPanel(docuemntContentElement: HTMLElement) {
     backlinkPanelPageSvelteMap.delete(panelId);
     pageSvelte.$destroy();
     backlinkPanelBottomElement.remove();
+
+}
+
+function destroyAllPanel() {
+
+    let allDocumentContentElementArray = document.querySelectorAll("div.layout__center div.layout-tab-container div.protyle-content.protyle-content--transition");
+
+    if (!allDocumentContentElementArray) {
+        return;
+    }
+    for (const docuemntContentElement of allDocumentContentElementArray) {
+        destroyPanel(docuemntContentElement as HTMLElement);
+
+    }
 
 }
 
@@ -281,10 +305,10 @@ function getDocumentBlockIconMenus(e) {
 }
 
 
-
+let intervalId;
 function intervalSetNodePaddingBottom() {
     // 后续看能不能优化成响应式的。。
-    setInterval(() => {
+    intervalId = setInterval(() => {
         if (documentProtyleElementMap.size <= 0) {
             return;
         }
@@ -311,3 +335,9 @@ function intervalSetNodePaddingBottom() {
     }, 50);
 }
 
+
+function destoryIntervalSetNodePaddingBottom() {
+    if (intervalId) {
+        clearInterval(intervalId);
+    }
+}
