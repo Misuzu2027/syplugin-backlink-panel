@@ -597,6 +597,7 @@ function isBacklinkBlockValid(
         let keywordObj = parseSearchSyntax(keywordStr.toLowerCase());
 
         let selfMarkdown = getQueryStrByBlock(backlinkBlockNode.block);
+        let selfDocumendMarkdown = getQueryStrByBlock(backlinkBlockNode.documentBlock);
         let docContent = getQueryStrByBlock(backlinkBlockNode.documentBlock)
         let parentMarkdown = backlinkBlockNode.parentMarkdown;
         let headlineChildMarkdown = backlinkBlockNode.headlineChildMarkdown;
@@ -605,7 +606,7 @@ function isBacklinkBlockValid(
             listItemChildMarkdown = parentListItemTreeNode.getFilterMarkdown(parentListItemTreeNode.includeChildIdArray, parentListItemTreeNode.excludeChildIdArray);
         }
 
-        let backlinkConcatContent = selfMarkdown + docContent + parentMarkdown + headlineChildMarkdown + listItemChildMarkdown;
+        let backlinkConcatContent = selfMarkdown + selfDocumendMarkdown + docContent + parentMarkdown + headlineChildMarkdown + listItemChildMarkdown;
         let backlinkAllAnchorText = getMardownAnchorTextArray(backlinkConcatContent).join(" ");
 
         backlinkConcatContent = removeMarkdownRefBlockStyle(backlinkConcatContent).toLowerCase();
@@ -666,7 +667,7 @@ export async function getBacklinkPanelData(
     let queryCurDocDefBlockRange = queryParams.queryCurDocDefBlockRange;
 
     let cacheResult = CacheManager.ins.getBacklinkPanelBaseData(rootId);
-    
+
     if (cacheResult) {
         cacheResult.userCache = true;
         return cacheResult;
