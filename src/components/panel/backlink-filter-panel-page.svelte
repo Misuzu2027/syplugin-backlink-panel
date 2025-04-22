@@ -414,21 +414,21 @@
         }
     }
 
-    function openDocumentTab(rootId: string) {
-        let actions: TProtyleAction[] = [Constants.CB_GET_CONTEXT];
+    // function openDocumentTab(rootId: string) {
+    //     let actions: TProtyleAction[] = [Constants.CB_GET_CONTEXT];
 
-        if (EnvConfig.ins.isMobile) {
-            openMobileFileById(EnvConfig.ins.app, rootId, actions);
-        } else {
-            openTab({
-                app: EnvConfig.ins.app,
-                doc: {
-                    id: rootId,
-                    action: actions,
-                },
-            });
-        }
-    }
+    //     if (EnvConfig.ins.isMobile) {
+    //         openMobileFileById(EnvConfig.ins.app, rootId, actions);
+    //     } else {
+    //         openTab({
+    //             app: EnvConfig.ins.app,
+    //             doc: {
+    //                 id: rootId,
+    //                 action: actions,
+    //             },
+    //         });
+    //     }
+    // }
 
     async function openBlockTab(rootId: string, blockId: string) {
         let zoomIn = await getBlockIsFolded(blockId);
@@ -775,6 +775,15 @@
         documentLiElement: HTMLElement,
         protyle: Protyle,
     ) {
+        // 手动发送一下加载 Protyle 事件，实验方法，仅对自己的插件起效
+        EnvConfig.ins.plugin.app.plugins.forEach((item) => {
+            if (item.name != "syplugin-image-pin-preview") {
+                return;
+            }
+            item.eventBus.emit("loaded-protyle-static", {
+                protyle: protyle.protyle,
+            });
+        });
         let protyleContentElement = protyle.protyle.contentElement;
 
         let backlinkBlockId = backlinkData.backlinkBlock.id;
@@ -960,7 +969,6 @@
         if (docAriaText) {
             docAriaText = docAriaText.substring(0, 100);
         }
-        
 
         documentLiElement.innerHTML = `
 <span style="padding-left: 4px;margin-right: 2px" class="b3-list-item__toggle b3-list-item__toggle--hl">
@@ -1505,7 +1513,9 @@ ${documentName}
                 <span class="fn__space"></span>
                 <select
                     class="b3-select fn__flex-center"
-                    bind:value={queryParams.filterPanelRelatedDefBlockSortMethod}
+                    bind:value={
+                        queryParams.filterPanelRelatedDefBlockSortMethod
+                    }
                     on:change={refreshFilterDisplayData}
                 >
                     {#each RELATED_DEF_BLOCK_SORT_METHOD_ELEMENT() as element}
@@ -1564,7 +1574,9 @@ ${documentName}
                 <div class="filter-panel__sub_title">反链所在文档：</div>
                 <select
                     class="b3-select fn__flex-center"
-                    bind:value={queryParams.filterPanelBacklinkDocumentSortMethod}
+                    bind:value={
+                        queryParams.filterPanelBacklinkDocumentSortMethod
+                    }
                     on:change={refreshFilterDisplayData}
                 >
                     {#each RELATED_DOCMUMENT_SORT_METHOD_ELEMENT() as element}

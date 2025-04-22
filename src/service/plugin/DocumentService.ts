@@ -206,6 +206,21 @@ async function addBacklinkPanelToBottom(docuemntContentElement: HTMLElement, roo
         },
     );
     backlinkPanelBottomElement.addEventListener("mouseover", (event: MouseEvent) => {
+        // const target = event.target as HTMLElement;
+        //
+        // // 如果元素包含 aria-label 样式，则不阻止事件传播
+        // if (target.classList.contains('ariaLabel')) {
+        //     return; // 不做任何操作，继续传播
+        // } else {
+        //     document.getElementById("tooltip").classList.add("fn__none");
+        // }
+        //
+        // // 考虑创建一个隐藏的 blockref 来显示悬浮窗，子文档列表挂件中好像有相似代码。
+        // if (target.getAttribute('data-type') === 'block-ref') {
+        //     event.stopPropagation();
+        //
+        // }
+
         event.stopPropagation();
     })
 
