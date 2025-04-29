@@ -89,9 +89,7 @@ async function getDocumentBottomBacklinkPanelDisplay(docuemntContentElement: HTM
     let isCardBlock = hasClosestByClassName(docuemntContentElement, "card__block")
     if (isCardBlock) {
         let flashCardBottomDisplay = SettingService.ins.SettingConfig.flashCardBottomDisplay;
-        if (flashCardBottomDisplay) {
-            return true;
-        } else {
+        if (!flashCardBottomDisplay) {
             return false;
         }
     }
