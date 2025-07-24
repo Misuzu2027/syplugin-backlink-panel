@@ -684,9 +684,9 @@
         }
 
         let protyleWysiwygElement = editor.protyle.contentElement.querySelector(
-            "div.protyle-wysiwyg.protyle-wysiwyg--attr",
+            "div.protyle-wysiwyg",
         );
-        let foldItemElementArray;
+        let foldItemElementArray = [];
         let expandHeadingMore: boolean = false;
         if (protyleWysiwygElement) {
             foldItemElementArray = protyleWysiwygElement.querySelectorAll(
