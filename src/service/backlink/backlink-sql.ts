@@ -345,6 +345,32 @@ export function generateGetBlockArraySql(
     return cleanSpaceText(sql);
 }
 
+
+/**
+ * 按块 id 查询块信息，并附带父块类型（parentBlockType）。
+ * 提及模式下用于将「提及块 id 列表」转成 BacklinkBlock[]，
+ * 复用反链管线（列表项子树需要 parentBlockType 判断）。
+ */
+export function generateGetBlockArrayWithParentTypeSql(
+    blockIds: string[],
+): string {
+    if (isArrayEmpty(blockIds)) {
+        return "";
+    }
+    let idInSql = generateAndInConditions("b.id", blockIds);
+
+    let sql = `
+    SELECT b.*, 
+    p1.type AS parentBlockType
+    FROM blocks b
+    LEFT JOIN blocks p1 ON b.parent_id = p1.id
+    WHERE 1 = 1 
+    ${idInSql}
+    LIMIT 999999999;
+    `
+    return cleanSpaceText(sql);
+}
+
 export function getParentIdIdxInfoSql() {
     let sql = `
     PRAGMA index_info(idx_blocks_parent_id_backlink_panel_plugin);

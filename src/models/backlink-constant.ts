@@ -8,6 +8,20 @@ export const DefinitionBlockStatus = {
 };
 
 
+export function PANEL_MODE_ELEMENT(): { name: string, value: string }[] {
+    return [
+        {
+            name: EnvConfig.ins.i18n.panelModeLink,
+            value: "link",
+        },
+        {
+            name: EnvConfig.ins.i18n.panelModeMention,
+            value: "mention",
+        },
+    ];
+}
+
+
 export function BACKLINK_BLOCK_SORT_METHOD_ELEMENT(): { name: string, value: BlockSortMethod }[] {
     return [
         {

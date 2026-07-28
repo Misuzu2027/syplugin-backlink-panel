@@ -4,6 +4,7 @@
         BACKLINK_BLOCK_SORT_METHOD_ELEMENT,
         CUR_DOC_DEF_BLOCK_SORT_METHOD_ELEMENT,
         CUR_DOC_DEF_BLOCK_TYPE_ELEMENT,
+        PANEL_MODE_ELEMENT,
         RELATED_DEF_BLOCK_SORT_METHOD_ELEMENT,
         RELATED_DEF_BLOCK_TYPE_ELEMENT,
         RELATED_DOCMUMENT_SORT_METHOD_ELEMENT,
@@ -14,6 +15,7 @@
         IBacklinkPanelRenderData,
         IPanelRednerFilterQueryParams,
         BacklinkPanelFilterCriteria,
+        PanelMode,
     } from "@/models/backlink-model";
     import {
         defBlockArrayTypeAndKeywordFilter,
@@ -78,6 +80,10 @@
     // 用于排序、关键字查找筛选条件，此时不会改动反链信息，所以在页面中处理。
     let queryParams: IPanelRednerFilterQueryParams;
     let savedQueryParamMap: Map<string, IPanelRednerFilterQueryParams>;
+    // 面板范围：引用（反链） / 提及。
+    let panelMode: PanelMode = "link";
+    // 各模式独立保存 queryParams，切换来回不丢筛选。
+    let queryParamsMap: Map<PanelMode, IPanelRednerFilterQueryParams> = new Map();
 
     /* 全局使用 */
     let defalutEditors: Protyle[] = [];
@@ -471,37 +477,10 @@
         previousRootId = rootId;
         previousFocusBlockId = focusBlockId;
         let settingConfig = SettingService.ins.SettingConfig;
-        let backlinkPanelDataQueryParams: IBacklinkFilterPanelDataQueryParams =
-            {
-                rootId,
-                focusBlockId,
-                queryParentDefBlock: settingConfig.queryParentDefBlock,
-                querrChildDefBlockForListItem:
-                    settingConfig.querrChildDefBlockForListItem,
-                queryChildDefBlockForHeadline:
-                    settingConfig.queryChildDefBlockForHeadline,
-                queryCurDocDefBlockRange,
-            };
         hideBacklinkProtyleBreadcrumb =
             settingConfig.hideBacklinkProtyleBreadcrumb;
 
-        let backlinkPanelBaseDataTemp = await getBacklinkPanelData(
-            backlinkPanelDataQueryParams,
-        );
-        // if (rootId != backlinkPanelBaseDataTemp.rootId) {
-        // return;
-        // }
-        backlinkFilterPanelBaseData = backlinkPanelBaseDataTemp;
-
-        if (
-            backlinkFilterPanelBaseData &&
-            backlinkFilterPanelBaseData.userCache
-        ) {
-            displayHintPanelBaseDataCacheUsage = true;
-        } else {
-            displayHintPanelBaseDataCacheUsage = false;
-        }
-
+        // 先加载筛选条件（含 panelMode / 提及关键字），再按模式取数。
         let defaultPanelCriteria =
             await BacklinkFilterPanelAttributeService.ins.getPanelCriteria(
                 rootId,
@@ -514,16 +493,68 @@
         //     defaultPanelCriteria.backlinkPanelBacklinkViewExpand;
         queryParams.pageNum = 1;
 
+        panelMode = queryParams.panelMode === "mention" ? "mention" : "link";
+        queryParams.panelMode = panelMode;
+        // 按模式隔离 queryParams
+        queryParamsMap = new Map();
+        queryParamsMap.set(panelMode, queryParams);
+
         savedQueryParamMap =
             await BacklinkFilterPanelAttributeService.ins.getPanelSavedCriteriaMap(
                 rootId,
             );
 
-        if (settingConfig.defaultSelectedViewBlock) {
+        await loadBaseDataForCurrentMode();
+    }
+
+    // 按当前 panelMode 取基础数据并渲染。
+    async function loadBaseDataForCurrentMode() {
+        if (!rootId) {
+            return;
+        }
+        let requestRootId = rootId;
+        let requestMode = panelMode;
+        let settingConfig = SettingService.ins.SettingConfig;
+        let backlinkPanelDataQueryParams: IBacklinkFilterPanelDataQueryParams =
+            {
+                rootId,
+                focusBlockId,
+                queryParentDefBlock: settingConfig.queryParentDefBlock,
+                querrChildDefBlockForListItem:
+                    settingConfig.querrChildDefBlockForListItem,
+                queryChildDefBlockForHeadline:
+                    settingConfig.queryChildDefBlockForHeadline,
+                queryCurDocDefBlockRange,
+                panelMode,
+                mentionKeywordStr: queryParams.mentionKeywordStr,
+            };
+
+        let backlinkPanelBaseDataTemp = await getBacklinkPanelData(
+            backlinkPanelDataQueryParams,
+        );
+        // 竞态：rootId 或范围已切换，丢弃过期响应。
+        if (requestRootId != rootId || requestMode != panelMode) {
+            return;
+        }
+        backlinkFilterPanelBaseData = backlinkPanelBaseDataTemp;
+
+        if (
+            backlinkFilterPanelBaseData &&
+            backlinkFilterPanelBaseData.userCache
+        ) {
+            displayHintPanelBaseDataCacheUsage = true;
+        } else {
+            displayHintPanelBaseDataCacheUsage = false;
+        }
+
+        // 「默认选中当前文档定义块」仅引用模式生效（提及不引用当前文档）。
+        if (
+            requestMode == "link" &&
+            settingConfig.defaultSelectedViewBlock &&
+            backlinkFilterPanelBaseData &&
+            backlinkFilterPanelBaseData.curDocDefBlockArray
+        ) {
             let selectBlockId = previousRootId;
-            // if (previousFocusBlockId) {
-            //     selectBlockId = previousFocusBlockId;
-            // }
             let viewBlockExistBacklink = false;
             backlinkFilterPanelBaseData.curDocDefBlockArray.forEach((item) => {
                 if (item.id == selectBlockId) {
@@ -544,6 +575,33 @@
         }
 
         updateRenderData();
+    }
+
+    // 切换面板范围（引用 / 提及），各模式独立保存筛选条件。
+    async function switchPanelMode(newModeValue: string) {
+        let newMode: PanelMode = newModeValue === "mention" ? "mention" : "link";
+        if (newMode == panelMode) {
+            return;
+        }
+        // 保存当前模式的 queryParams
+        if (queryParams) {
+            queryParams.panelMode = panelMode;
+            queryParamsMap.set(panelMode, queryParams);
+        }
+        panelMode = newMode;
+
+        let nextQueryParams = queryParamsMap.get(newMode);
+        if (!nextQueryParams) {
+            nextQueryParams =
+                BacklinkFilterPanelAttributeService.ins.getDefaultQueryParams();
+        }
+        nextQueryParams.panelMode = newMode;
+        nextQueryParams.pageNum = 1;
+        queryParams = nextQueryParams;
+        queryParamsMap.set(newMode, queryParams);
+
+        clearBacklinkProtyleList();
+        await loadBaseDataForCurrentMode();
     }
 
     async function updateRenderData() {
@@ -820,9 +878,22 @@
         hideOtherListItemElement(backlinkData, protyle);
 
         // 高亮搜索内容
-        let keywordArray = splitKeywordStringToArray(
-            queryParams.backlinkKeywordStr,
-        );
+        let keywordArray: string[];
+        if (panelMode == "mention") {
+            // 提及模式：高亮用户提及关键字 + 内核返回的命中关键字（名称/别名/文档名/锚文本）。
+            keywordArray = splitKeywordStringToArray(
+                queryParams.mentionKeywordStr,
+            );
+            let mentionKeywordArray =
+                backlinkFilterPanelRenderData.mentionKeywordArray;
+            if (isArrayNotEmpty(mentionKeywordArray)) {
+                keywordArray = keywordArray.concat(mentionKeywordArray);
+            }
+        } else {
+            keywordArray = splitKeywordStringToArray(
+                queryParams.backlinkKeywordStr,
+            );
+        }
         // 去掉关键词前面存在的匹配符
         for (let i = 0; i < keywordArray.length; i++) {
             let keyword = keywordArray[i];
@@ -1100,7 +1171,14 @@ ${documentName}
             defaultQueryParams.backlinkBlockSortMethod;
         queryParams.backlinkKeywordStr = "";
 
-        updateRenderData();
+        if (panelMode == "mention") {
+            // 提及关键字变化需重新取数。
+            queryParams.mentionKeywordStr = "";
+            queryParams.pageNum = 1;
+            loadBaseDataForCurrentMode();
+        } else {
+            updateRenderData();
+        }
     }
 
     // 处理定义块点击事件
@@ -1322,6 +1400,16 @@ ${documentName}
         }, 450);
     }
 
+    // 提及模式：关键字走服务端过滤，需重新取数。
+    function handleMentionKeywordInput() {
+        clearTimeout(inputChangeTimeoutId);
+
+        inputChangeTimeoutId = setTimeout(() => {
+            queryParams.pageNum = 1;
+            loadBaseDataForCurrentMode();
+        }, 450);
+    }
+
     function handleFilterPanelInput() {
         // 清除之前的定时器
         clearTimeout(inputChangeTimeoutId);
@@ -1416,6 +1504,8 @@ ${documentName}
     <!-- 筛选条件区域 -->
     {#if backlinkFilterPanelRenderData && panelFilterViewExpand}
         <div class="backlink-panel-filter">
+            <!-- 提及模式下隐藏「当前文档定义块」区块（提及不引用当前文档，过滤恒空） -->
+            {#if panelMode !== "mention"}
             <div class="fn__flex">
                 <div class="filter-panel__sub_title">定义块范围：</div>
                 <select
@@ -1492,6 +1582,7 @@ ${documentName}
                     {/each}
                 </div>
             </div>
+            {/if}
             <div class="fn__flex">
                 <div class="filter-panel__sub_title">关联的定义块：</div>
                 <select
@@ -1571,7 +1662,11 @@ ${documentName}
                 </div>
             </div>
             <div class="fn__flex">
-                <div class="filter-panel__sub_title">反链所在文档：</div>
+                <div class="filter-panel__sub_title">
+                    {panelMode === "mention"
+                        ? EnvConfig.ins.i18n.mentionDocument
+                        : EnvConfig.ins.i18n.backlinkDocument}：
+                </div>
                 <select
                     class="b3-select fn__flex-center"
                     bind:value={
@@ -1710,7 +1805,9 @@ ${documentName}
             <div class="block__logo" style="font-weight: bold;">
                 <svg class="block__logoicon"
                     ><use xlink:href="#iconLink"></use></svg
-                >反向链接
+                >{panelMode === "mention"
+                    ? EnvConfig.ins.i18n.panelModeMention
+                    : "反向链接"}
             </div>
             <span class="fn__flex-1"></span>
             <span class="fn__space"></span>
@@ -1743,26 +1840,49 @@ ${documentName}
                 </span>
             {/if}
         </div>
+        {#if panelBacklinkViewExpand}
+            <div
+                class="fn__flex panel-mode-switch"
+                style="padding: 5px 15px 0px;"
+                on:click|stopPropagation
+                on:keydown={handleKeyDownDefault}
+            >
+                {#each PANEL_MODE_ELEMENT() as element}
+                    <button
+                        class="b3-button panel-mode-button {panelMode ===
+                        element.value
+                            ? 'panel-mode-button--active'
+                            : ''}"
+                        on:click|stopPropagation={() =>
+                            switchPanelMode(element.value)}
+                    >
+                        {element.name}
+                    </button>
+                {/each}
+            </div>
+        {/if}
         {#if panelBacklinkViewExpand && queryParams}
             <div class="fn__flex" style="padding: 5px 15px; maragin:0px;">
-                <select
-                    class="b3-select fn__flex-center ariaLabel"
-                    bind:value={queryParams.backlinkCurDocDefBlockType}
-                    on:change={updateRenderData}
-                    style="flex: 0.5;"
-                    aria-label="当前文档定义块类型"
-                >
-                    {#each RELATED_DEF_BLOCK_TYPE_ELEMENT() as element}
-                        <option
-                            value={element.value}
-                            selected={element.value ==
-                                queryParams.backlinkCurDocDefBlockType}
-                        >
-                            {element.name}
-                        </option>
-                    {/each}
-                </select>
-                <span class="fn__space"></span>
+                {#if panelMode !== "mention"}
+                    <select
+                        class="b3-select fn__flex-center ariaLabel"
+                        bind:value={queryParams.backlinkCurDocDefBlockType}
+                        on:change={updateRenderData}
+                        style="flex: 0.5;"
+                        aria-label="当前文档定义块类型"
+                    >
+                        {#each RELATED_DEF_BLOCK_TYPE_ELEMENT() as element}
+                            <option
+                                value={element.value}
+                                selected={element.value ==
+                                    queryParams.backlinkCurDocDefBlockType}
+                            >
+                                {element.name}
+                            </option>
+                        {/each}
+                    </select>
+                    <span class="fn__space"></span>
+                {/if}
                 <select
                     class="b3-select fn__flex-center"
                     bind:value={queryParams.backlinkBlockSortMethod}
@@ -1779,11 +1899,20 @@ ${documentName}
                     {/each}
                 </select>
                 <span class="fn__space"></span>
-                <input
-                    class="b3-text-field fn__size200"
-                    on:input={handleBacklinkKeywordInput}
-                    bind:value={queryParams.backlinkKeywordStr}
-                />
+                {#if panelMode === "mention"}
+                    <input
+                        class="b3-text-field fn__size200"
+                        placeholder={EnvConfig.ins.i18n.panelModeMention}
+                        on:input={handleMentionKeywordInput}
+                        bind:value={queryParams.mentionKeywordStr}
+                    />
+                {:else}
+                    <input
+                        class="b3-text-field fn__size200"
+                        on:input={handleBacklinkKeywordInput}
+                        bind:value={queryParams.backlinkKeywordStr}
+                    />
+                {/if}
 
                 <span
                     class="block__icon b3-tooltips b3-tooltips__sw"
@@ -1820,7 +1949,10 @@ ${documentName}
                     <span class="fn__space"></span>
 
                     <span class="">
-                        {EnvConfig.ins.i18n.findInBacklink.replace(
+                        {(panelMode === "mention"
+                            ? EnvConfig.ins.i18n.findInMention
+                            : EnvConfig.ins.i18n.findInBacklink
+                        ).replace(
                             "${x}",
                             backlinkFilterPanelRenderData.backlinkBlockNodeArray
                                 .length,
@@ -2108,5 +2240,37 @@ ${documentName}
         padding: 3px 6px;
         font-size: 11px;
         cursor: pointer;
+    }
+
+    .panel-mode-switch {
+        gap: 6px;
+        align-items: center;
+    }
+
+    .panel-mode-button {
+        flex: 1;
+        padding: 3px 6px;
+        font-size: 12px;
+        cursor: pointer;
+        background-color: var(--b3-theme-background);
+        color: var(--b3-theme-on-background);
+        border: 1px solid var(--b3-border-color);
+        opacity: 0.85;
+    }
+
+    .panel-mode-button:hover {
+        opacity: 1;
+        background-color: var(--b3-list-hover);
+    }
+
+    .panel-mode-button--active {
+        background-color: var(--b3-theme-primary);
+        color: #fff;
+        border-color: var(--b3-theme-primary);
+        opacity: 1;
+    }
+
+    .panel-mode-button--active:hover {
+        background-color: var(--b3-theme-primary);
     }
 </style>

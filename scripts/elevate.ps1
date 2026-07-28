@@ -20,5 +20,16 @@ if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 
 Set-Location -Path $projectDir
 & node $scriptPath
+$exitCode = $LASTEXITCODE
 
-pause
+if ($exitCode -ne 0) {
+    Write-Host ""
+    Write-Host "创建软连接失败，请查看上方错误信息。" -ForegroundColor Red
+    pause
+    exit $exitCode
+}
+
+Write-Host ""
+Write-Host "软连接创建成功！" -ForegroundColor Green
+Start-Sleep -Seconds 2
+exit 0

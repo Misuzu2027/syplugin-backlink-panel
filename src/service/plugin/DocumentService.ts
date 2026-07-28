@@ -9,6 +9,7 @@ import { generateGetDefBlockArraySql } from "../backlink/backlink-sql";
 import { sql } from "@/utils/api";
 import { isArrayEmpty } from "@/utils/array-util";
 import { NewNodeID } from "@/utils/siyuan-util";
+import { CUSTOM_ICON_MAP } from "@/models/icon-constant";
 
 
 let backlinkPanelPageSvelteMap: Map<string, BacklinkFilterPanelPageSvelte> = new Map();
@@ -38,6 +39,10 @@ export class DocumentService {
 
         EnvConfig.ins.plugin.eventBus.on("click-editortitleicon", (e: any) => {
             hadnleClickEditorTitleIcon(e);
+        });
+
+        EnvConfig.ins.plugin.eventBus.on("open-menu-doctree", (e: any) => {
+            handleOpenMenuDocTree(e);
         });
         // EnvConfig.ins.plugin.addCommand({
         //     langKey: "showDocumentBottomBacklinkPanel",
@@ -270,7 +275,7 @@ function hadnleClickEditorTitleIcon(e) {
 
 
     (e.detail.menu as Menu).addItem({
-        icon: "BacklinkPanelFilter",
+        icon: CUSTOM_ICON_MAP.BacklinkPanelFilter.id,
         type: "submenu",
         label: "反链过滤面板",
         submenu: getDocumentBlockIconMenus(e)
@@ -284,6 +289,7 @@ function getDocumentBlockIconMenus(e) {
     }
     let submenus = [];
     submenus.push({
+        icon: "iconUndo",
         label: "恢复默认",
         click: async () => {
             await BacklinkFilterPanelAttributeService.ins.updateDocumentBottomShowPanel(rootId, null);
@@ -297,6 +303,7 @@ function getDocumentBlockIconMenus(e) {
         }
     });
     submenus.push({
+        icon: "iconEye",
         label: "始终显示该文档底部反链",
         click: async () => {
             await BacklinkFilterPanelAttributeService.ins.updateDocumentBottomShowPanel(rootId, 1);
@@ -306,6 +313,7 @@ function getDocumentBlockIconMenus(e) {
         }
     });
     submenus.push({
+        icon: "iconEyeoff",
         label: "始终隐藏该文档底部反链",
         click: async () => {
             BacklinkFilterPanelAttributeService.ins.updateDocumentBottomShowPanel(rootId, -1);
@@ -315,6 +323,88 @@ function getDocumentBlockIconMenus(e) {
     });
 
     return submenus;
+}
+
+// 文档树右键菜单：所有插件的选项都会被思源合并到同一个「插件」菜单下，为了避免和其他插件的功能混在一起，
+// 我们统一挂在唯一的一个二级菜单入口下，本插件后续新增的文档树右键功能也应放到这个入口里。
+function handleOpenMenuDocTree(e: any) {
+    let type = e?.detail?.type;
+    // 笔记本级别没有单篇文档属性可设置，暂不处理。
+    if (type !== "doc" && type !== "docs") {
+        return;
+    }
+
+    let rootIdArray = getDocTreeSelectedRootIdArray(e);
+    if (isArrayEmpty(rootIdArray)) {
+        return;
+    }
+
+    (e.detail.menu as Menu).addItem({
+        icon: CUSTOM_ICON_MAP.BacklinkPanelFilter.id,
+        type: "submenu",
+        label: "反链过滤面板",
+        submenu: getDocTreeBacklinkPanelMenus(rootIdArray),
+    });
+}
+
+function getDocTreeSelectedRootIdArray(e: any): string[] {
+    let elements = e?.detail?.elements as NodeListOf<HTMLElement> | HTMLElement[];
+    if (!elements) {
+        return [];
+    }
+    let rootIdArray: string[] = [];
+    elements.forEach((element) => {
+        let rootId = element.getAttribute("data-node-id");
+        if (rootId && !rootIdArray.includes(rootId)) {
+            rootIdArray.push(rootId);
+        }
+    });
+    return rootIdArray;
+}
+
+function getDocTreeBacklinkPanelMenus(rootIdArray: string[]) {
+    let submenus = [];
+    submenus.push({
+        icon: "iconUndo",
+        label: "恢复默认",
+        click: async () => {
+            await batchUpdateDocumentBottomShowPanel(rootIdArray, null);
+        }
+    });
+    submenus.push({
+        icon: "iconEye",
+        label: "始终显示该文档底部反链",
+        click: async () => {
+            await batchUpdateDocumentBottomShowPanel(rootIdArray, 1);
+        }
+    });
+    submenus.push({
+        icon: "iconEyeoff",
+        label: "始终隐藏该文档底部反链",
+        click: async () => {
+            await batchUpdateDocumentBottomShowPanel(rootIdArray, -1);
+        }
+    });
+    return submenus;
+}
+
+async function batchUpdateDocumentBottomShowPanel(rootIdArray: string[], value: number) {
+    for (const rootId of rootIdArray) {
+        await BacklinkFilterPanelAttributeService.ins.updateDocumentBottomShowPanel(rootId, value);
+        await refreshOpenDocumentContentElementByRootId(rootId);
+    }
+}
+
+// 文档树右键菜单操作的文档不一定已经打开，如果恰好已经在页签中打开，则同步刷新其底部反链面板的显示状态。
+async function refreshOpenDocumentContentElementByRootId(rootId: string) {
+    let allDocumentContentElementArray = document.querySelectorAll("div.layout__center div.layout-tab-container div.protyle-content.protyle-content--transition");
+    for (const docuemntContentElement of allDocumentContentElementArray) {
+        let wysiwygElement = docuemntContentElement.querySelector(".protyle-wysiwyg.protyle-wysiwyg--attr");
+        if (!wysiwygElement || wysiwygElement.getAttribute("data-node-id") !== rootId) {
+            continue;
+        }
+        await refreshBacklinkPanelToBottom(docuemntContentElement as HTMLElement, rootId, null);
+    }
 }
 
 

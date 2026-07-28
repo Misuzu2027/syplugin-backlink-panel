@@ -14,6 +14,8 @@ export class CacheManager {
 
     private backlinkPanelBaseDataCache: CacheUtil = new CacheUtil();
     private backlinkDocApiDataCache: CacheUtil = new CacheUtil();
+    private mentionPanelBaseDataCache: CacheUtil = new CacheUtil();
+    private mentionDocApiDataCache: CacheUtil = new CacheUtil();
     private backlinkFilterPanelLastCriteriaCache: CacheUtil = new CacheUtil();
     private backlinkPanelSavedCriteriaCache: CacheUtil = new CacheUtil();
 
@@ -44,9 +46,38 @@ export class CacheManager {
         this.backlinkDocApiDataCache.clearByPrefix(defId);
     }
 
+
+    // 提及模式基础数据缓存，键：rootId + 提及关键字。
+    public setMentionPanelBaseData(rootId: string, keyword: string, value: IBacklinkFilterPanelData, ttlSeconds: number) {
+        let key = generateKey(rootId, keyword);
+        this.mentionPanelBaseDataCache.set(key, value, ttlSeconds * 1000);
+    }
+    public getMentionPanelBaseData(rootId: string, keyword: string): IBacklinkFilterPanelData {
+        let key = generateKey(rootId, keyword);
+        return this.mentionPanelBaseDataCache.get(key);
+    }
+    public deleteMentionPanelBaseData(rootId: string) {
+        this.mentionPanelBaseDataCache.clearByPrefix(rootId);
+    }
+
+    // 提及块渲染数据缓存，键：rootId(defID) + 提及所在文档 rootId + 提及关键字。
+    public setMentionDocApiData(rootId: string, refTreeID: string, keyword: string, value: any, ttlSeconds: number) {
+        let key = generateKey(rootId, refTreeID, keyword);
+        this.mentionDocApiDataCache.set(key, value, ttlSeconds * 1000);
+    }
+    public getMentionDocApiData(rootId: string, refTreeID: string, keyword: string): any {
+        let key = generateKey(rootId, refTreeID, keyword);
+        return this.mentionDocApiDataCache.get(key);
+    }
+    public deleteMentionDocApiData(rootId: string) {
+        this.mentionDocApiDataCache.clearByPrefix(rootId);
+    }
+
     public deleteBacklinkPanelAllCache(rootId: string) {
         this.deleteBacklinkPanelBaseData(rootId);
         this.deleteBacklinkDocApiData(rootId);
+        this.deleteMentionPanelBaseData(rootId);
+        this.deleteMentionDocApiData(rootId);
     }
 
 

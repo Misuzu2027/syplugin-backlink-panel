@@ -1,8 +1,9 @@
-import { getBacklink2, getBacklinkDoc, getBatchBlockIdIndex, sql } from "@/utils/api";
+import { getBacklink2, getBacklinkDoc, getBackmentionDoc, getBatchBlockIdIndex, sql } from "@/utils/api";
 import {
     generateGetBacklinkBlockArraySql,
     generateGetBacklinkListItemBlockArraySql,
     generateGetBlockArraySql,
+    generateGetBlockArrayWithParentTypeSql,
     generateGetChildBlockArraySql,
     generateGetDefBlockArraySql,
     generateGetHeadlineChildDefBlockArraySql,
@@ -29,7 +30,7 @@ import {
     matchKeywords,
     splitKeywordStringToArray
 } from "@/utils/string-util";
-import { intersectionSet, isArrayEmpty, isArrayNotEmpty, isSetEmpty, isSetNotEmpty, paginate } from "@/utils/array-util";
+import { getLastItem, intersectionSet, isArrayEmpty, isArrayNotEmpty, isSetEmpty, isSetNotEmpty, paginate } from "@/utils/array-util";
 import { DefinitionBlockStatus } from "@/models/backlink-constant";
 import { CacheManager } from "@/config/CacheManager";
 import { SettingService } from "../setting/SettingService";
@@ -68,7 +69,12 @@ export async function getBacklinkPanelRenderData(
 
     backlinkBlockNodeArraySort(validBacklinkBlockNodeArray, queryParams.backlinkBlockSortMethod);
     let pageBacklinkBlockArray = paginate(validBacklinkBlockNodeArray, pageNum, pageSize);
-    let backlinkCacheData: IBacklinkCacheData = await getBatchBacklinkDoc(rootId, pageBacklinkBlockArray);
+    let backlinkCacheData: IBacklinkCacheData;
+    if (queryParams.panelMode == "mention") {
+        backlinkCacheData = await getBatchBackmentionDoc(rootId, pageBacklinkBlockArray, queryParams.mentionKeywordStr);
+    } else {
+        backlinkCacheData = await getBatchBacklinkDoc(rootId, pageBacklinkBlockArray);
+    }
     // highlightBacklinkContent(backlinkCacheData.backlinks, queryParams.keywordStr);
 
     let backlinkDataArray = backlinkCacheData.backlinks;
@@ -104,6 +110,7 @@ export async function getBacklinkPanelRenderData(
         pageSize,
         totalPage,
         usedCache,
+        mentionKeywordArray: backlinkCacheData.keywords,
     };
 
     const endTime = performance.now(); // 记录结束时间
@@ -135,7 +142,12 @@ export async function getTurnPageBacklinkPanelRenderData(
 
     backlinkBlockNodeArraySort(validBacklinkBlockNodeArray, queryParams.backlinkBlockSortMethod);
     let pageBacklinkBlockArray = paginate(validBacklinkBlockNodeArray, pageNum, pageSize);
-    let backlinkCacheData: IBacklinkCacheData = await getBatchBacklinkDoc(rootId, pageBacklinkBlockArray);
+    let backlinkCacheData: IBacklinkCacheData;
+    if (queryParams.panelMode == "mention") {
+        backlinkCacheData = await getBatchBackmentionDoc(rootId, pageBacklinkBlockArray, queryParams.mentionKeywordStr);
+    } else {
+        backlinkCacheData = await getBatchBacklinkDoc(rootId, pageBacklinkBlockArray);
+    }
     // highlightBacklinkContent(backlinkCacheData.backlinks, queryParams.keywordStr);
 
     let backlinkDataArray = backlinkCacheData.backlinks;
@@ -151,6 +163,7 @@ export async function getTurnPageBacklinkPanelRenderData(
         pageSize,
         totalPage,
         usedCache,
+        mentionKeywordArray: backlinkCacheData.keywords,
     };
     const endTime = performance.now(); // 记录结束时间
     const executionTime = endTime - startTime; // 计算时间差
@@ -464,16 +477,25 @@ async function getBatchBacklinkDoc(
 }
 
 function getBacklinkBlockId(dom: string): string {
-    if (isStrBlank(dom)) {
+    let id = getDomRootNodeId(dom);
+    if (isStrBlank(id)) {
         return NewNodeID();
+    }
+    return id;
+}
+
+// 取渲染 DOM 根节点的 data-node-id，取不到返回空串（不生成随机 id，便于调用方回退）。
+function getDomRootNodeId(dom: string): string {
+    if (isStrBlank(dom)) {
+        return "";
     }
     let backklinkDom = stringToDom(dom);
     if (!backklinkDom) {
-        return NewNodeID();
+        return "";
     }
     let id = backklinkDom.getAttribute("data-node-id");
     if (isStrBlank(id)) {
-        return NewNodeID();
+        return "";
     }
     return id;
 }
@@ -660,6 +682,11 @@ function isBacklinkBlockValid(
 export async function getBacklinkPanelData(
     queryParams: IBacklinkFilterPanelDataQueryParams
 ): Promise<IBacklinkFilterPanelData> {
+    // 提及模式走独立的取数管线。
+    if (queryParams.panelMode == "mention") {
+        return getMentionPanelData(queryParams);
+    }
+
     const startTime = performance.now(); // 记录开始时间
     let rootId = queryParams.rootId;
     let focusBlockId = queryParams.focusBlockId;
@@ -761,6 +788,238 @@ export async function getBacklinkPanelData(
     // console.log(" blockTreeNodeArray : ", backlinkPanelData)
 
     return backlinkPanelData;
+}
+
+/**
+ * 提及模式取数管线（对齐 getBacklinkPanelData）。
+ * 步骤：
+ * 1. getBacklink2 取提及文档列表（backmentions）。
+ * 2. 对每个提及文档 getBackmentionDoc 取渲染数据（IBacklinkData[]），并缓存。
+ *    提及块 id = 渲染 DOM 根节点 id（getMentionBlockId，列表项场景回退 blockPaths 末项）。
+ * 3. 汇总提及块 id → 查 blocks 得 BacklinkBlock[]，复用反链管线
+ *    （getParentBlockArray/getHeadlineChildBlockArray/getListItemChildBlockArray + buildBacklinkPanelData）。
+ * 提及块不引用当前文档，故 curDocDefBlockArray 传空，includeDirectDefBlockIds 恒空，
+ * 全部落入 includeRelatedDefBlockIds，符合预期。
+ */
+export async function getMentionPanelData(
+    queryParams: IBacklinkFilterPanelDataQueryParams
+): Promise<IBacklinkFilterPanelData> {
+    const startTime = performance.now();
+    let rootId = queryParams.rootId;
+    let mentionKeyword = queryParams.mentionKeywordStr ? queryParams.mentionKeywordStr : "";
+
+    let emptyResult: IBacklinkFilterPanelData = {
+        rootId,
+        backlinkBlockNodeArray: [],
+        curDocDefBlockArray: [],
+        relatedDefBlockArray: [],
+        backlinkDocumentArray: [],
+    };
+
+    let cacheResult = CacheManager.ins.getMentionPanelBaseData(rootId, mentionKeyword);
+    if (cacheResult) {
+        cacheResult.userCache = true;
+        return cacheResult;
+    }
+
+    // 步骤 1：取提及文档列表
+    let backlink2Data = await getBacklink2(rootId, "", mentionKeyword, "3", "3");
+    let backmentionDocArray: DefBlock[] = backlink2Data && backlink2Data.backmentions ? backlink2Data.backmentions : [];
+    if (isArrayEmpty(backmentionDocArray)) {
+        return emptyResult;
+    }
+
+    // 步骤 2：取每个提及文档的渲染数据（并缓存），汇总提及块 id
+    let cacheExpirationTime = SettingService.ins.SettingConfig.cacheExpirationTime;
+    let mentionBlockIdSet = new Set<string>();
+    await Promise.all(
+        backmentionDocArray.map(async (docPath) => {
+            let refTreeId = docPath.id;
+            if (!refTreeId) {
+                return;
+            }
+            let data = await getBackmentionDocByApiOrCache(rootId, refTreeId, mentionKeyword);
+            for (const mentionData of data.backlinks) {
+                let mentionBlockId = getMentionBlockId(mentionData);
+                if (mentionBlockId) {
+                    mentionBlockIdSet.add(mentionBlockId);
+                }
+            }
+        }),
+    );
+
+    let mentionBlockIds = Array.from(mentionBlockIdSet);
+    if (isArrayEmpty(mentionBlockIds)) {
+        return emptyResult;
+    }
+
+    // 步骤 3：由提及块 id 查 blocks 得 BacklinkBlock[]，复用反链管线
+    let getBlockArraySql = generateGetBlockArrayWithParentTypeSql(mentionBlockIds);
+    let backlinkBlockArray: BacklinkBlock[] = await sql(getBlockArraySql);
+    backlinkBlockArray = backlinkBlockArray ? backlinkBlockArray : [];
+    if (isArrayEmpty(backlinkBlockArray)) {
+        return emptyResult;
+    }
+
+    // 提及块不引用当前文档，故当前文档定义块传空。
+    let curDocDefBlockArray: DefBlock[] = [];
+
+    let backlinkBlockQueryParams: IBacklinkBlockQueryParams = {
+        queryParentDefBlock: queryParams.queryParentDefBlock,
+        querrChildDefBlockForListItem: queryParams.querrChildDefBlockForListItem,
+        queryChildDefBlockForHeadline: queryParams.queryChildDefBlockForHeadline,
+        defBlockIds: [],
+        backlinkBlocks: backlinkBlockArray,
+        backlinkBlockIds: getBlockIds(backlinkBlockArray),
+    };
+
+    let backlinkParentBlockArray: BacklinkParentBlock[] = await getParentBlockArray(backlinkBlockQueryParams);
+    let headlinkBacklinkChildBlockArray: BacklinkChildBlock[] = await getHeadlineChildBlockArray(backlinkBlockQueryParams);
+    let listItemBacklinkChildBlockArray: BacklinkChildBlock[] = await getListItemChildBlockArray(backlinkBlockQueryParams);
+
+    let backlinkPanelData: IBacklinkFilterPanelData = await buildBacklinkPanelData({
+        rootId,
+        curDocDefBlockArray,
+        backlinkBlockArray,
+        headlinkBacklinkChildBlockArray,
+        listItemBacklinkChildBlockArray,
+        backlinkParentBlockArray,
+    });
+
+    const endTime = performance.now();
+    const executionTime = endTime - startTime;
+    console.log(
+        `反链面板 获取和处理提及数据 消耗时间 : ${executionTime} ms `,
+    );
+
+    if (cacheExpirationTime >= 0) {
+        CacheManager.ins.setMentionPanelBaseData(rootId, mentionKeyword, backlinkPanelData, cacheExpirationTime);
+    }
+
+    return backlinkPanelData;
+}
+
+// 提及块 id 以「渲染 DOM 根节点 id」为准，回退到 blockPaths 末项。
+// 原因：列表项场景下 blockPaths 末项是列表项块（如 20260718144902-p7cjatg），
+// 而内核返回的渲染 DOM 根节点是该列表项内的叶子块（如 20260718144902-1xj254q，段落）。
+// 渲染归位（getBatchBackmentionDoc）是按 DOM 根节点 id 命中节点的，
+// 若这里用 blockPaths 末项（列表项 id）构建节点，渲染阶段无法命中，
+// 会导致「别名/文本命中的列表项提及块」计入总数却不展示。
+function getMentionBlockId(mentionData: IBacklinkData): string {
+    if (!mentionData) {
+        return "";
+    }
+    let domId = getDomRootNodeId(mentionData.dom);
+    if (domId) {
+        return domId;
+    }
+    let lastPath = getLastItem(mentionData.blockPaths);
+    if (lastPath && lastPath.id) {
+        return lastPath.id;
+    }
+    return "";
+}
+
+async function getBackmentionDocByApiOrCache(
+    rootId: string, refTreeId: string, keyword: string
+): Promise<IBacklinkCacheData> {
+    let backlinks = CacheManager.ins.getMentionDocApiData(rootId, refTreeId, keyword);
+    if (backlinks) {
+        return { backlinks: backlinks.backmentions, usedCache: true, keywords: backlinks.keywords };
+    }
+
+    const data: { backmentions: IBacklinkData[], keywords: string[] } =
+        await getBackmentionDoc(rootId, refTreeId, keyword, false);
+    let backmentions = data && data.backmentions ? data.backmentions : [];
+    let keywords = data && data.keywords ? data.keywords : [];
+
+    let cacheExpirationTime = SettingService.ins.SettingConfig.cacheExpirationTime;
+    if (cacheExpirationTime >= 0) {
+        CacheManager.ins.setMentionDocApiData(rootId, refTreeId, keyword, { backmentions, keywords }, cacheExpirationTime);
+    }
+
+    return { backlinks: backmentions, usedCache: false, keywords };
+}
+
+// 对齐 getBatchBacklinkDoc：按 refTreeId(提及所在文档) 归组取渲染数据，按块顺序归位。
+async function getBatchBackmentionDoc(
+    curRootId: string,
+    backlinkBlockNodeArray: IBacklinkBlockNode[],
+    mentionKeyword: string,
+): Promise<IBacklinkCacheData> {
+    mentionKeyword = mentionKeyword ? mentionKeyword : "";
+    const backlinkBlockIdOrderMap = new Map<string, number>();
+    const backlinkBlockNodeMap = new Map<string, IBacklinkBlockNode>();
+    const backlinkBlockParentNodeMap = new Map<string, IBacklinkBlockNode>();
+    const refTreeIdSet = new Set<string>();
+    for (const [index, node] of backlinkBlockNodeArray.entries()) {
+        refTreeIdSet.add(node.block.root_id);
+        backlinkBlockIdOrderMap.set(node.block.id, index);
+        backlinkBlockIdOrderMap.set(node.block.parent_id, index - 0.1);
+        backlinkBlockNodeMap.set(node.block.id, node);
+        backlinkBlockParentNodeMap.set(node.block.parent_id, node);
+    }
+
+    let usedCache = false;
+    let keywordSet = new Set<string>();
+    const allBacklinksArray: IBacklinkData[] = (
+        await Promise.all(
+            Array.from(refTreeIdSet).map(
+                async (refTreeId) => {
+                    let data = await getBackmentionDocByApiOrCache(curRootId, refTreeId, mentionKeyword);
+                    if (data.usedCache) {
+                        usedCache = true;
+                    }
+                    if (isArrayNotEmpty(data.keywords)) {
+                        data.keywords.forEach((k) => keywordSet.add(k));
+                    }
+                    return data.backlinks;
+                },
+            ),
+        )
+    ).flat();
+
+    let backlinkDcoDataMap: Map<string, IBacklinkData> = new Map<string, IBacklinkData>();
+
+    for (const backlink of allBacklinksArray) {
+        let backlinkBlockId: string = getBacklinkBlockId(backlink.dom);
+        if (backlinkDcoDataMap.has(backlinkBlockId)) {
+            continue;
+        }
+        let backlinkBlockNode: IBacklinkBlockNode = backlinkBlockNodeMap.get(backlinkBlockId);
+        if (!backlinkBlockNode) {
+            backlinkBlockNode = backlinkBlockParentNodeMap.get(backlinkBlockId);
+        }
+        if (backlinkBlockNode) {
+            backlink.dom = backlink.dom.replace(/search-mark/g, "");
+            backlink.backlinkBlock = backlinkBlockNode.block;
+            backlinkDcoDataMap.set(backlinkBlockId, backlink)
+            if (backlinkBlockNode.parentListItemTreeNode) {
+                backlink.includeChildListItemIdArray = backlinkBlockNode.parentListItemTreeNode.includeChildIdArray;
+                backlink.excludeChildLisetItemIdArray = backlinkBlockNode.parentListItemTreeNode.excludeChildIdArray;
+            }
+        }
+    }
+    let backlinkDcoDataResult: IBacklinkData[] = Array.from(backlinkDcoDataMap.values());
+    // 按分页顺序归位
+    backlinkDcoDataResult.sort((a, b) => {
+        let aId = getBacklinkBlockId(a.dom);
+        let bId = getBacklinkBlockId(b.dom);
+        const indexA = backlinkBlockIdOrderMap.has(aId)
+            ? backlinkBlockIdOrderMap.get(aId)!
+            : Infinity;
+        const indexB = backlinkBlockIdOrderMap.has(bId)
+            ? backlinkBlockIdOrderMap.get(bId)!
+            : Infinity;
+        return indexA - indexB;
+    });
+
+    let result: IBacklinkCacheData = {
+        backlinks: backlinkDcoDataResult,
+        usedCache: usedCache,
+        keywords: Array.from(keywordSet),
+    };
+    return result;
 }
 
 async function getBacklinkBlockArray(queryParams: IBacklinkBlockQueryParams): Promise<BacklinkBlock[]> {
@@ -1103,6 +1362,61 @@ async function buildBacklinkPanelData(
     const blockIdArray = [...relatedDefBlockCountMap.keys(), ...backlinkDocumentCountMap.keys()];
 
     let relatedDefBlockAndDocumentMap = await getBlockInfoMap(blockIdArray);
+
+    // 文档范围：反链/提及块所在文档自身（标题、命名、别名、标签）中的块引用，视为跟"父路径"同等的关联范围，
+    // 既参与关联定义块计数，也参与点击筛选。文档块信息已经通过 backlinkDocumentCountMap 一并查询回来了，这里不用再查一次。
+    let documentDefBlockIdsMap = new Map<string, string[]>();
+    for (const rootId of backlinkDocumentCountMap.keys()) {
+        let docBlock = relatedDefBlockAndDocumentMap.get(rootId);
+        if (!docBlock) {
+            continue;
+        }
+        let docQueryStr = getQueryStrByBlock(docBlock);
+        let docRefIds = getRefBlockId(docQueryStr);
+        if (isArrayEmpty(docRefIds)) {
+            continue;
+        }
+        documentDefBlockIdsMap.set(rootId, docRefIds);
+        updateDynamicAnchorMap(relatedDefBlockDynamicAnchorMap, docQueryStr);
+        updateStaticAnchorMap(relatedDefBlockStaticAnchorMap, docQueryStr);
+    }
+
+    // 文档范围引用到的定义块，可能不在上面 blockIdArray 已查询的范围内，需要补查一次。
+    let missingDocRefIdSet = new Set<string>();
+    for (const docRefIds of documentDefBlockIdsMap.values()) {
+        for (const docRefId of docRefIds) {
+            if (!relatedDefBlockAndDocumentMap.has(docRefId)) {
+                missingDocRefIdSet.add(docRefId);
+            }
+        }
+    }
+    if (isSetNotEmpty(missingDocRefIdSet)) {
+        let extraBlockInfoMap = await getBlockInfoMap(Array.from(missingDocRefIdSet));
+        extraBlockInfoMap.forEach((blockInfo, blockId) => relatedDefBlockAndDocumentMap.set(blockId, blockInfo));
+    }
+
+    // 把文档范围的引用合并进每个反链/提及块节点：既写入 includeRelatedDefBlockIds（非列表项场景的筛选依据），
+    // 也写入 includeParentDefBlockIds（列表项场景下 ListItemTreeNode 筛选的祖先种子集合），跟"父路径"完全对齐。
+    for (const node of Object.values(backlinkBlockMap)) {
+        let docRefIds = documentDefBlockIdsMap.get(node.block.root_id);
+        if (isArrayEmpty(docRefIds)) {
+            continue;
+        }
+        for (const docRefId of docRefIds) {
+            if (node.includeRelatedDefBlockIds.has(docRefId)) {
+                continue;
+            }
+            node.includeRelatedDefBlockIds.add(docRefId);
+            node.includeParentDefBlockIds.add(docRefId);
+            if (curDocDefBlockIdArray.includes(docRefId)) {
+                node.includeDirectDefBlockIds.add(docRefId);
+            } else {
+                updateMaxValueMap(backlinkBlockCreatedMap, docRefId, node.block.created);
+                updateMaxValueMap(backlinkBlockUpdatedMap, docRefId, node.block.updated);
+                updateMapCount(relatedDefBlockCountMap, docRefId);
+            }
+        }
+    }
 
     let relatedDefBlockArray: DefBlock[] = [];
     let backlinkDocumentArray: DefBlock[] = [];

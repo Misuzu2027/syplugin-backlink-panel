@@ -34,6 +34,7 @@ export class BacklinkFilterPanelAttributeService {
                 if ("queryParams" in parseObject) {
                     documentPanelCriteria = parseObject;
                     parseObject.queryParams.backlinkKeywordStr = "";
+                    parseObject.queryParams.mentionKeywordStr = "";
                     queryParams = mergeObjects(documentPanelCriteria.queryParams, defaultQueryParams);
                 }
             }
@@ -77,6 +78,7 @@ export class BacklinkFilterPanelAttributeService {
         // 持久缓存删除 关键字。
         let criteriaCloned : BacklinkPanelFilterCriteria= JSON.parse(criteriaJson);
         criteriaCloned.queryParams.backlinkKeywordStr = "";
+        criteriaCloned.queryParams.mentionKeywordStr = "";
         let criteriaClonedJson = JSON.stringify(criteriaCloned);
         let attrs = {};
         attrs[BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY] = criteriaClonedJson;
@@ -174,6 +176,8 @@ export class BacklinkFilterPanelAttributeService {
         }
         let queryParams = {
             pageNum: 1,
+            panelMode: "link",
+            mentionKeywordStr: "",
             backlinkCurDocDefBlockType: "all",
             backlinkBlockSortMethod: backlinkBlockSortMethod,
             backlinkKeywordStr: "",

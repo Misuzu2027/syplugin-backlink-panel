@@ -2,27 +2,32 @@
   "name": "syplugin-backlink-panel",
   "author": "Misuzu2027",
   "url": "https://github.com/Misuzu2027/syplugin-backlink-panel",
-  "version": "0.0.31",
+  "version": "0.0.32",
   "minAppVersion": "3.1.4",
   "backends": [
-   "all"
+    "all"
   ],
   "frontends": [
     "all"
   ],
   "displayName": {
-    "en_US": "Filterable Backlink Panel",
-    "zh_CN": "反链过滤面板"
+    "default": "Filterable Backlink Panel",
+    "zh-CN": "反链过滤面板"
   },
   "description": {
-    "en_US": "Filterable Backlink Panel",
-    "zh_CN": "支持过滤的反链面板"
+    "default": "Filterable backlink panel with dock, document bottom panel, and tab views.",
+    "zh-CN": "支持过滤的反链面板，提供侧栏、文档底部与页签分栏显示。"
   },
   "readme": {
-    "en_US": "README.md",
-    "zh_CN": "README_zh_CN.md"
+    "default": "README.md",
+    "zh-CN": "README_zh_CN.md"
+  },
+  "funding": {
+    "github": "Misuzu2027"
   },
   "keywords": [
-    "dock","backlink","反链"
+    "dock",
+    "backlink",
+    "反链"
   ]
 }

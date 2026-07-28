@@ -534,6 +534,28 @@ export async function getBacklinkDoc(defID: string, refTreeID: string, keyword: 
     return request(url, data);
 }
 
+
+/**
+ * 获取某文档内「提及块」的渲染数据。
+ * 元素结构与 getBacklinkDoc 的 IBacklinkData 完全一致（同由内核 buildBacklink 生成）。
+ * @param defID 当前文档 rootId
+ * @param refTreeID 提及所在文档 rootId
+ * @param keyword 提及关键字（服务端过滤）
+ * @param highlight 是否高亮
+ * @returns { backmentions: IBacklinkData[], keywords: string[] }
+ */
+export async function getBackmentionDoc(defID: string, refTreeID: string, keyword: string, highlight: boolean = false): Promise<{ backmentions: IBacklinkData[], keywords: string[] }> {
+    let data = {
+        defID: defID,
+        refTreeID: refTreeID,
+        keyword: keyword,
+        highlight: highlight,
+    }
+    let url = '/api/ref/getBackmentionDoc';
+
+    return request(url, data);
+}
+
 /**
  * 
 {
@@ -556,7 +578,8 @@ export async function getBacklink2(id: string, k: string, mk: string, sort: stri
         k: k,
         mk: mk,
         sort: sort,
-        msort: msort,
+        // 内核按 arg["mSort"] 读取（大小写敏感），此处必须为 mSort，否则提及排序参数被忽略。
+        mSort: msort,
     }
     let url = '/api/ref/getBacklink2';
 

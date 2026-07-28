@@ -55,6 +55,8 @@ type BlockSortMethod =
 interface IBacklinkCacheData {
     backlinks: IBacklinkData[];
     usedCache: boolean;
+    // 提及模式下由内核返回的高亮关键字（名称/别名/文档名/锚文本）。
+    keywords?: string[];
 }
 
 

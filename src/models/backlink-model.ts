@@ -9,7 +9,10 @@ export interface IBacklinkFilterPanelDataQueryParams {
     querrChildDefBlockForListItem?: boolean;
     queryChildDefBlockForHeadline?: boolean;
     queryCurDocDefBlockRange: string;
-
+    // 面板范围：引用（反链） / 提及。默认 link。
+    panelMode?: PanelMode;
+    // 提及模式下的提及关键字（服务端过滤）。
+    mentionKeywordStr?: string;
 }
 
 
@@ -108,13 +111,14 @@ export class ListItemTreeNode {
         if (isSetNotEmpty(this.includeDefBlockIds)) {
             newParentDefBlockIdArray.push(...this.includeDefBlockIds);
         }
-        if (isSetNotEmpty(this.includeDefBlockIds)) {
-            let exclude = excludeDefBlockIdArray.some(value => newParentDefBlockIdArray.includes(value))
-            if (exclude) {
-                result.push(this.id);
-                this.excludeChildIdArray = result;
-                return result;
-            }
+        // 这里不能只在 this.includeDefBlockIds 非空时才判断，
+        // 因为祖先路径（parentDefBlockIdArray，包含父级列表项/文档等范围）单独就可能已经满足排除条件，
+        // 即使当前节点自身没有任何块引用（内容为空的列表项）。
+        let exclude = excludeDefBlockIdArray.some(value => newParentDefBlockIdArray.includes(value))
+        if (exclude) {
+            result.push(this.id);
+            this.excludeChildIdArray = result;
+            return result;
         }
         if (isArrayNotEmpty(this.children)) {
             this.children.forEach(item => {
@@ -161,12 +165,13 @@ export class ListItemTreeNode {
             result.push(this);
             return result;
         }
-        if (isSetNotEmpty(this.includeDefBlockIds)) {
-            let includeAll = includeDefBlockIdArray.every(value => newParentDefBLockIdArray.includes(value))
-            if (includeAll) {
-                result.push(this);
-                return result;
-            }
+        // 同上：不能只在 this.includeDefBlockIds 非空时才判断"是否已全部满足"，
+        // 否则内容为空的列表项节点会被跳过判断，即使祖先路径（父级列表项/文档等范围）已经满足全部包含条件，
+        // 导致该节点及其所在的整条链路被误判为不匹配（点击关联定义块后计数变 0）。
+        let includeAll = includeDefBlockIdArray.every(value => newParentDefBLockIdArray.includes(value))
+        if (includeAll) {
+            result.push(this);
+            return result;
         }
         if (isArrayNotEmpty(this.children)) {
             this.children.forEach(item => {
@@ -294,6 +299,8 @@ export interface IBacklinkFilterPanelData {
     // documentNodeArray: DocumentNode[];
 }
 
+export type PanelMode = "link" | "mention";
+
 export interface IPanelRenderBacklinkQueryParams {
     pageNum: number;
     pageSize: number;
@@ -305,6 +312,10 @@ export interface IPanelRenderBacklinkQueryParams {
     includeDocumentIds: Set<string>;
     excludeDocumentIds: Set<string>;
 
+    // 面板范围：引用（反链） / 提及。默认 link。
+    panelMode: PanelMode;
+    // 提及模式下的提及关键字（服务端过滤，触发重新取数）。
+    mentionKeywordStr: string;
 }
 
 export interface IPanelRednerFilterQueryParams extends IPanelRenderBacklinkQueryParams {
@@ -338,6 +349,8 @@ export interface IBacklinkPanelRenderData {
     pageSize: number;
     totalPage: number;
     usedCache: boolean;
+    // 提及模式下由内核返回的高亮关键字。
+    mentionKeywordArray?: string[];
 }
 
 export class BacklinkPanelFilterCriteria {

@@ -51,6 +51,7 @@
     "previousLabel": "Previous",
     "nextLabel": "Next",
     "findInBacklink": "Found ${x} backlink blocks",
+    "findInMention": "Found ${x} mention blocks",
     "notebookFilter": "Notebook Filter",
     "attr": "Attribute",
     "other": "Other",
@@ -79,5 +80,9 @@
     "swapDocumentItemClickLogicTips": "When disabled, click to expand search results and double-click to open the document; when enabled, click to open the document and double-click to expand search results.",
     "allNotebooks": "All Notebooks",
     "specifyNotebook": "Specify Notebook",
-    "searchInTheCurrentDocument": "Search in the current document"
+    "searchInTheCurrentDocument": "Search in the current document",
+    "panelModeLink": "Reference",
+    "panelModeMention": "Mention",
+    "mentionDocument": "Mention Document",
+    "backlinkDocument": "Backlink Document"
 }

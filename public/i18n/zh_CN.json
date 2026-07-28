@@ -51,6 +51,7 @@
     "previousLabel": "上一页",
     "nextLabel": "下一页",
     "findInBacklink": "共 ${x} 个反链块",
+    "findInMention": "共 ${x} 个提及块",
     "notebookFilter": "笔记本过滤",
     "attr": "属性",
     "other": "其他",
@@ -79,6 +80,10 @@
     "swapDocumentItemClickLogicTips": "禁用时，单击展开搜索结果，双击打开文档；启用时，单击打开文档，双击展开搜索结果。",
     "allNotebooks": "所有笔记本",
     "specifyNotebook": "指定笔记本",
-    "searchInTheCurrentDocument": "在当前文档查询"
+    "searchInTheCurrentDocument": "在当前文档查询",
+    "panelModeLink": "引用",
+    "panelModeMention": "提及",
+    "mentionDocument": "提及所在文档",
+    "backlinkDocument": "反链所在文档"
 
 }
