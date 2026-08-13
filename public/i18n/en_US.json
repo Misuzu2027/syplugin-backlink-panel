@@ -84,5 +84,7 @@
     "panelModeLink": "Reference",
     "panelModeMention": "Mention",
     "mentionDocument": "Mention Document",
-    "backlinkDocument": "Backlink Document"
+    "backlinkDocument": "Backlink Document",
+    "settingDialogTitle": "Backlink Panel Settings",
+    "settingLayoutResizerTitle": "Drag to resize"
 }

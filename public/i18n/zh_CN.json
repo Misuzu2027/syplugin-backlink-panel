@@ -84,6 +84,8 @@
     "panelModeLink": "引用",
     "panelModeMention": "提及",
     "mentionDocument": "提及所在文档",
-    "backlinkDocument": "反链所在文档"
+    "backlinkDocument": "反链所在文档",
+    "settingDialogTitle": "反链面板插件设置",
+    "settingLayoutResizerTitle": "拖动调整宽度"
 
 }

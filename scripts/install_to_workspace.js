@@ -12,14 +12,14 @@ import {
 } from "./utils.js";
 
 log(">>> 选择工作空间来源:");
-log("\t[0] 从正在运行的思源读取 (http://127.0.0.1:6806/api/system/getWorkspaces)");
+log("\t[0] 自动检测（运行中的思源端口 / ~/.config/siyuan/workspace.json）");
 log("\t[1] 手动输入工作空间目录");
 
 let pluginsDir = "";
 const modeAnswer = await ask("\t请选择 [0/1]: ");
 
 if (modeAnswer === "0") {
-    log(">>> 正在从思源获取工作空间列表...");
+    log(">>> 正在解析思源工作空间列表...");
     const workspaces = await getSiYuanDir();
     if (!workspaces || workspaces.length === 0) {
         error(">>> 无法获取工作空间列表，请确认思源已启动，或改用选项 [1] 手动输入目录");
@@ -36,7 +36,6 @@ if (modeAnswer === "0") {
         process.exit(1);
     }
     pluginsDir = toPluginDir(workspacePath);
-    log(`>>> 插件安装目录: ${pluginsDir}`);
 } else {
     error(`>>> 无效选项: "${modeAnswer}"`);
     process.exit(1);

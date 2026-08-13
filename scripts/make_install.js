@@ -1,11 +1,11 @@
-// make_install.js
+// make_install.js — copy ./dist into <workspace>/data/plugins/<pluginName>
 import fs from "fs";
 import {
     log,
     error,
     resolvePluginDir,
-    copyDirectory,
     getThisPluginName,
+    installDistAsPlugin,
 } from "./utils.js";
 
 let targetDir = "";
@@ -16,16 +16,13 @@ if (!pluginDir) {
 }
 
 if (!fs.existsSync(pluginDir)) {
-    error(`失败！插件目录不存在: "${pluginDir}"`);
-    error("请创建该目录，或修改 scripts/link-config.json");
-    process.exit(1);
+    log(`>>> 插件目录不存在，将创建: ${pluginDir}`);
 }
-
-log(`>>> 目标插件目录: ${pluginDir}`);
 
 const distDir = `${process.cwd()}/dist`;
 if (!fs.existsSync(distDir)) {
-    error("失败！未找到 dist/ 目录，请先运行 `pnpm build`。");
+    error(`构建产物不存在: ${distDir}`);
+    error("请先运行 `pnpm build`（或使用 `pnpm make-install`）。");
     process.exit(1);
 }
 
@@ -33,6 +30,6 @@ const name = getThisPluginName();
 if (name === null) {
     process.exit(1);
 }
-const targetPath = `${pluginDir}/${name}`;
 
-copyDirectory(distDir, targetPath);
+const ok = installDistAsPlugin(distDir, pluginDir, name);
+process.exit(ok ? 0 : 1);

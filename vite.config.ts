@@ -49,6 +49,13 @@ export default defineConfig({
                 {
                     src: "./icon.png",
                     dest: "./",
+                },
+                {
+                    // README 中引用的图片资源需随包分发，
+                    // 否则「已下载」状态下本地渲染 README 时相对路径图片会 404
+                    // 参考：https://docs.siyuan-note.club/zh-Hans/reference/bazaar/
+                    src: "./asset",
+                    dest: "./",
                 }
             ],
         }),

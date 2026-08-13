@@ -145,6 +145,9 @@ interface IBreadcrumb {
 }
 
 interface IBacklinkData {
+    // 内核返回的反链单位块 id。传递型反链下它是文档块 / 标题块 id，
+    // 而渲染 DOM 的根节点是该单位的第一个子块，两者并不相同。
+    id?: string;
     blockPaths: IBreadcrumb[];
     dom: string;
     expand: boolean;

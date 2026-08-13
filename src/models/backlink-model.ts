@@ -53,6 +53,13 @@ export interface IBacklinkBlockNode {
     dynamicAnchorMap: Map<string, Set<string>>;
     staticAnchorMap: Map<string, Set<string>>;
     parentListItemTreeNode?: ListItemTreeNode;
+    // 传递型反链（文档 / 标题）：命中后 block 换成文档块或标题块，下属的其它引用合并进这一条。
+    // 反链单位范围内的全部内容，参与关键字匹配。
+    propagatedMarkdown?: string;
+    // 反链单位范围内的块 id，用于把内核返回的渲染 DOM 归位到这一条。
+    propagatedCoveredBlockIds?: Set<string>;
+    // 触发传递的那个段落自身引用的定义块。只有拿它去调 getBacklinkDoc，内核才会返回传递后的整篇文档 / 整个标题。
+    propagatedTriggerDefBlockIds?: Set<string>;
 }
 
 export class ListItemTreeNode {

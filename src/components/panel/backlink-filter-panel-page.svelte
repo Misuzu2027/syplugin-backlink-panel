@@ -931,11 +931,16 @@
             return;
         }
 
-        // 首先判断反链块是否是列表项
-        let targetBlockParentElement = protyleContentElement.querySelector(
+        // 首先判断反链块是否是列表项。
+        // 传递型反链的单位是整篇文档时，渲染出来的是文档下的各个块，没有文档块自身的节点，这里会取不到元素。
+        let targetBlockElement = protyleContentElement.querySelector(
             `div[data-node-id='${backlinkData.backlinkBlock.id}']`,
-        ).parentElement;
+        );
+        let targetBlockParentElement = targetBlockElement
+            ? targetBlockElement.parentElement
+            : null;
         if (
+            !targetBlockParentElement ||
             !targetBlockParentElement.matches(`div[data-type="NodeListItem"]`)
         ) {
             return;

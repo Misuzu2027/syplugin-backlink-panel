@@ -181,22 +181,55 @@ export function generateGetListItemtSubMarkdownArraySql(
 
 
 
-export function generateGetBacklinkBlockArraySql(
-    queryParams: IBacklinkBlockQueryParams,
+/**
+ * 传递型反链：查询标题块的下属全部内容（标题及其下属块的闭包）。
+ * 思源在建索引时把「标题下方的块」的 parent_id 记为该标题（见内核 sql/database.go 的 HeadingParent 处理），
+ * 因此沿 parent_id 递归即可得到 treenode.HeadingChildren 等价的范围，含下级标题的内容。
+ * headingId 字段回传发起递归的标题 id，便于一次查询多个标题。
+ */
+export function generateGetHeadingSubtreeBlockArraySql(
+    headingIds: string[],
 ): string {
-    let defBlockIds = queryParams.defBlockIds;
-    let idInSql = generateAndInConditions("def_block_id", defBlockIds);
+    if (isArrayEmpty(headingIds)) {
+        return "";
+    }
+    let idInSql = generateAndInConditions("id", headingIds);
 
     let sql = `
-    SELECT b.*
-    FROM blocks b
-    WHERE 1 = 1 
-        AND b.id IN ( 
-        	SELECT block_id 
-            FROM refs 
-            WHERE 1 = 1 ${idInSql}
-        )
-    LIMIT 9999999999;
+    WITH RECURSIVE heading_child AS (
+        SELECT id, parent_id, root_id, type, markdown, ( name || alias || memo || tag ) AS inAttrConcat, CAST ( id AS TEXT ) AS headingId 
+        FROM blocks 
+        WHERE 1 = 1 ${idInSql}
+    UNION ALL
+        SELECT t.id, t.parent_id, t.root_id, t.type, t.markdown, ( t.name || t.alias || t.memo || t.tag ) AS inAttrConcat, c.headingId 
+        FROM blocks t INNER JOIN heading_child c ON c.id = t.parent_id 
+    )
+    SELECT * 
+    FROM heading_child 
+    WHERE id != headingId 
+    LIMIT 999999999;
+    `
+    return cleanSpaceText(sql);
+}
+
+
+/**
+ * 传递型反链：查询文档的下属全部内容。
+ * 文档块自身的 root_id 就是它自己，所以结果里包含文档块本身。
+ */
+export function generateGetDocumentSubtreeBlockArraySql(
+    rootIds: string[],
+): string {
+    if (isArrayEmpty(rootIds)) {
+        return "";
+    }
+    let idInSql = generateAndInConditions("root_id", rootIds);
+
+    let sql = `
+    SELECT id, parent_id, root_id, type, markdown, ( name || alias || memo || tag ) AS inAttrConcat 
+    FROM blocks 
+    WHERE 1 = 1 ${idInSql}
+    LIMIT 999999999;
     `
     return cleanSpaceText(sql);
 }

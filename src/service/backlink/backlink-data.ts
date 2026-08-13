@@ -1,6 +1,5 @@
 import { getBacklink2, getBacklinkDoc, getBackmentionDoc, getBatchBlockIdIndex, sql } from "@/utils/api";
 import {
-    generateGetBacklinkBlockArraySql,
     generateGetBacklinkListItemBlockArraySql,
     generateGetBlockArraySql,
     generateGetBlockArrayWithParentTypeSql,
@@ -36,6 +35,7 @@ import { CacheManager } from "@/config/CacheManager";
 import { SettingService } from "../setting/SettingService";
 import { stringToDom } from "@/utils/html-util";
 import { getQueryStrByBlock, NewNodeID } from "@/utils/siyuan-util";
+import { buildBacklinkPropagationUnitArray, IBacklinkPropagationUnit } from "./backlink-propagation";
 
 
 export async function getBacklinkPanelRenderData(
@@ -379,12 +379,13 @@ async function getBatchBacklinkDoc(
     const backlinkBlockIdOrderMap = new Map<string, number>();
     const backlinkBlockNodeMap = new Map<string, IBacklinkBlockNode>();
     const backlinkBlockParentNodeMap = new Map<string, IBacklinkBlockNode>();
+    // 传递型反链单位下属的块 id，用于在旧内核（不做文档 / 标题传递）下把按引用块粒度返回的 DOM 归位。
+    const propagatedCoveredNodeMap = new Map<string, IBacklinkBlockNode>();
     for (const [index, node] of backlinkBlockNodeArray.entries()) {
         let backlinkRootId = node.block.root_id;
         // 提取反链块中的共同关键字
         let backlinkContent = node.block.content;
-        let defId = intersectionSet(node.includeCurBlockDefBlockIds, node.includeDirectDefBlockIds)[0];
-        // let defId = node.includeCurBlockDefBlockIds.values().next().value;
+        let defId = getBacklinkDocQueryDefId(node);
         let mapKey = defId + "<->" + backlinkRootId;
         let keyword = defIdRefTreeIdKeywordMap.get(mapKey);
         if (keyword === undefined) {
@@ -401,6 +402,14 @@ async function getBatchBacklinkDoc(
         backlinkBlockIdOrderMap.set(node.block.parent_id, index - 0.1);
         backlinkBlockNodeMap.set(node.block.id, node);
         backlinkBlockParentNodeMap.set(node.block.parent_id, node);
+        if (node.propagatedCoveredBlockIds) {
+            for (const coveredBlockId of node.propagatedCoveredBlockIds) {
+                propagatedCoveredNodeMap.set(coveredBlockId, node);
+                if (!backlinkBlockIdOrderMap.has(coveredBlockId)) {
+                    backlinkBlockIdOrderMap.set(coveredBlockId, index - 0.05);
+                }
+            }
+        }
     }
 
     let usedCache = false;
@@ -423,33 +432,51 @@ async function getBatchBacklinkDoc(
         )
     ).flat();
 
+    // 按「节点」而不是「DOM 根节点 id」去重：传递型反链一个单位只保留一条，
+    // 且渲染 DOM 的根节点 id 未必等于节点 id（旧内核仍按引用块粒度返回 DOM）。
     let backlinkDcoDataMap: Map<string, IBacklinkData> = new Map<string, IBacklinkData>();
+    const bindBacklinkData = (backlink: IBacklinkData, backlinkBlockNode: IBacklinkBlockNode): boolean => {
+        if (!backlinkBlockNode || backlinkDcoDataMap.has(backlinkBlockNode.block.id)) {
+            return false;
+        }
+        backlink.dom = backlink.dom.replace(/search-mark/g, "");
+        backlink.backlinkBlock = backlinkBlockNode.block;
+        if (backlinkBlockNode.parentListItemTreeNode) {
+            backlink.includeChildListItemIdArray = backlinkBlockNode.parentListItemTreeNode.includeChildIdArray;
+            backlink.excludeChildLisetItemIdArray = backlinkBlockNode.parentListItemTreeNode.excludeChildIdArray;
+        }
+        backlinkDcoDataMap.set(backlinkBlockNode.block.id, backlink);
+        return true;
+    };
 
+    // 先按反链单位块 id 精确命中节点，剩下的再走父级列表项 / 传递单位下属块的回退匹配。
+    let boundBacklinkSet = new Set<IBacklinkData>();
     for (const backlink of allBacklinksArray) {
-        let backlinkBlockId: string = getBacklinkBlockId(backlink.dom);
-        if (backlinkDcoDataMap.has(backlinkBlockId)) {
+        let backlinkBlockId: string = getBacklinkDataBlockId(backlink);
+        if (bindBacklinkData(backlink, backlinkBlockNodeMap.get(backlinkBlockId))) {
+            boundBacklinkSet.add(backlink);
+        }
+    }
+    for (const backlink of allBacklinksArray) {
+        if (boundBacklinkSet.has(backlink)) {
             continue;
         }
-        let backlinkBlockNode: IBacklinkBlockNode = backlinkBlockNodeMap.get(backlinkBlockId);
+        let backlinkBlockId: string = getBacklinkDataBlockId(backlink);
+        let backlinkBlockNode = backlinkBlockParentNodeMap.get(backlinkBlockId);
         if (!backlinkBlockNode) {
-            backlinkBlockNode = backlinkBlockParentNodeMap.get(backlinkBlockId);
+            backlinkBlockNode = propagatedCoveredNodeMap.get(backlinkBlockId);
         }
-        if (backlinkBlockNode) {
-            backlink.dom = backlink.dom.replace(/search-mark/g, "");
-            backlink.backlinkBlock = backlinkBlockNode.block;
-            backlinkDcoDataMap.set(backlinkBlockId, backlink)
-            if (backlinkBlockNode.parentListItemTreeNode) {
-                backlink.includeChildListItemIdArray = backlinkBlockNode.parentListItemTreeNode.includeChildIdArray;
-                backlink.excludeChildLisetItemIdArray = backlinkBlockNode.parentListItemTreeNode.excludeChildIdArray;
-            }
+        if (!backlinkBlockNode) {
+            backlinkBlockNode = propagatedCoveredNodeMap.get(getBacklinkBlockId(backlink.dom));
         }
+        bindBacklinkData(backlink, backlinkBlockNode);
     }
     let backlinkDcoDataResult: IBacklinkData[] = Array.from(backlinkDcoDataMap.values());
     /* 排序 */
     // 根据 orderMap 中的顺序对 arr 进行排序
     backlinkDcoDataResult.sort((a, b) => {
-        let aId = getBacklinkBlockId(a.dom);
-        let bId = getBacklinkBlockId(b.dom);
+        let aId = getBacklinkDataBlockId(a);
+        let bId = getBacklinkDataBlockId(b);
         const indexA = backlinkBlockIdOrderMap.has(aId)
             ? backlinkBlockIdOrderMap.get(aId)!
             : Infinity;
@@ -474,6 +501,33 @@ async function getBatchBacklinkDoc(
     //     `反链面板 批量获取反链文档信息 消耗时间 : ${executionTime} ms `,
     // );
     return result;
+}
+
+/**
+ * 挑一个用于调 getBacklinkDoc 的定义块 id。
+ * 传递型反链必须优先用触发段落自身引用的定义块：内核只有在处理这个定义块的引用时，
+ * 才会判定「文档 / 标题下首段是纯块引用」并返回整篇文档 / 整个标题的渲染 DOM；
+ * 换成单位里其它块引用的定义块，拿回来的只会是那一行。
+ */
+function getBacklinkDocQueryDefId(node: IBacklinkBlockNode): string {
+    if (isSetNotEmpty(node.propagatedTriggerDefBlockIds)) {
+        let triggerDefId = intersectionSet(node.propagatedTriggerDefBlockIds, node.includeDirectDefBlockIds)[0];
+        if (triggerDefId) {
+            return triggerDefId;
+        }
+    }
+    return intersectionSet(node.includeCurBlockDefBlockIds, node.includeDirectDefBlockIds)[0];
+}
+
+/**
+ * 反链单位块 id：优先用内核返回的 id 字段。
+ * 传递型反链下文档单位的渲染 DOM 根节点是文档的第一个子块，光看 DOM 认不出这是一整篇文档。
+ */
+function getBacklinkDataBlockId(backlink: IBacklinkData): string {
+    if (isStrNotBlank(backlink.id)) {
+        return backlink.id;
+    }
+    return getBacklinkBlockId(backlink.dom);
 }
 
 function getBacklinkBlockId(dom: string): string {
@@ -628,7 +682,10 @@ function isBacklinkBlockValid(
             listItemChildMarkdown = parentListItemTreeNode.getFilterMarkdown(parentListItemTreeNode.includeChildIdArray, parentListItemTreeNode.excludeChildIdArray);
         }
 
-        let backlinkConcatContent = selfMarkdown + selfDocumendMarkdown + docContent + parentMarkdown + headlineChildMarkdown + listItemChildMarkdown;
+        // 传递型反链：反链单位是文档 / 标题时，关键字匹配范围就是这个单位的全部内容。
+        let propagatedMarkdown = backlinkBlockNode.propagatedMarkdown ? backlinkBlockNode.propagatedMarkdown : "";
+
+        let backlinkConcatContent = selfMarkdown + selfDocumendMarkdown + docContent + parentMarkdown + headlineChildMarkdown + listItemChildMarkdown + propagatedMarkdown;
         let backlinkAllAnchorText = getMardownAnchorTextArray(backlinkConcatContent).join(" ");
 
         backlinkConcatContent = removeMarkdownRefBlockStyle(backlinkConcatContent).toLowerCase();
@@ -761,6 +818,7 @@ export async function getBacklinkPanelData(
 
     let listItemBacklinkChildBlockArray: BacklinkChildBlock[] = await getListItemChildBlockArray(backlinkBlockQueryParams);
 
+    let propagationUnitArray: IBacklinkPropagationUnit[] = await buildBacklinkPropagationUnitArray(backlinkBlockArray);
 
     let backlinkPanelData: IBacklinkFilterPanelData = await buildBacklinkPanelData({
         rootId,
@@ -769,6 +827,7 @@ export async function getBacklinkPanelData(
         headlinkBacklinkChildBlockArray,
         listItemBacklinkChildBlockArray,
         backlinkParentBlockArray,
+        propagationUnitArray,
     });
 
     const endTime = performance.now(); // 记录结束时间
@@ -884,6 +943,8 @@ export async function getMentionPanelData(
         headlinkBacklinkChildBlockArray,
         listItemBacklinkChildBlockArray,
         backlinkParentBlockArray,
+        // 提及模式不参与文档 / 标题传递。
+        propagationUnitArray: [],
     });
 
     const endTime = performance.now();
@@ -1026,14 +1087,9 @@ async function getBacklinkBlockArray(queryParams: IBacklinkBlockQueryParams): Pr
     if (!queryParams) {
         return [];
     }
-    let backlinkBlockArray: BacklinkBlock[];
-    if (queryParams.querrChildDefBlockForListItem) {
-        let backlinkListItemBlockArraySql = generateGetBacklinkListItemBlockArraySql(queryParams);
-        backlinkBlockArray = await sql(backlinkListItemBlockArraySql);
-    } else {
-        let getBacklinkBlockArraySql = generateGetBacklinkBlockArraySql(queryParams);
-        backlinkBlockArray = await sql(getBacklinkBlockArraySql);
-    }
+    // parentBlockType 除了列表项子树，还用于判定文档 / 标题传递，所以恒定带上。
+    let backlinkListItemBlockArraySql = generateGetBacklinkListItemBlockArraySql(queryParams);
+    let backlinkBlockArray: BacklinkBlock[] = await sql(backlinkListItemBlockArraySql);
     backlinkBlockArray = backlinkBlockArray ? backlinkBlockArray : [];
     return backlinkBlockArray;
 }
@@ -1198,6 +1254,7 @@ async function buildBacklinkPanelData(
         headlinkBacklinkChildBlockArray: BacklinkChildBlock[],
         listItemBacklinkChildBlockArray: BacklinkChildBlock[],
         backlinkParentBlockArray: BacklinkParentBlock[],
+        propagationUnitArray: IBacklinkPropagationUnit[],
     }
 ): Promise<IBacklinkFilterPanelData> {
     let curDocDefBlockIdArray = getBlockIds(paramObj.curDocDefBlockArray);
@@ -1359,6 +1416,28 @@ async function buildBacklinkPanelData(
         }
     }
 
+    // 传递型反链：反链单位是文档 / 标题时，关联定义块的查询范围跟着扩大到该单位的全部下属内容。
+    // 必须放在汇总 blockIdArray 之前，新出现的定义块才能查到块信息并显示在筛选面板里。
+    for (const unit of paramObj.propagationUnitArray) {
+        let backlinkBlockNode = backlinkBlockMap[unit.triggerBacklinkBlockId];
+        if (!backlinkBlockNode) {
+            continue;
+        }
+        let markdown = unit.scopeMarkdown;
+        for (const scopeDefBlockId of getRefBlockId(markdown)) {
+            backlinkBlockNode.includeRelatedDefBlockIds.add(scopeDefBlockId);
+            if (curDocDefBlockIdArray.includes(scopeDefBlockId)) {
+                backlinkBlockNode.includeDirectDefBlockIds.add(scopeDefBlockId);
+            } else if (!relatedDefBlockIdSet.has(scopeDefBlockId)) {
+                updateMaxValueMap(backlinkBlockCreatedMap, scopeDefBlockId, backlinkBlockNode.block.created);
+                updateMaxValueMap(backlinkBlockUpdatedMap, scopeDefBlockId, backlinkBlockNode.block.updated);
+                updateMapCount(relatedDefBlockCountMap, scopeDefBlockId);
+            }
+        }
+        updateDynamicAnchorMap(relatedDefBlockDynamicAnchorMap, markdown);
+        updateStaticAnchorMap(relatedDefBlockStaticAnchorMap, markdown);
+    }
+
     const blockIdArray = [...relatedDefBlockCountMap.keys(), ...backlinkDocumentCountMap.keys()];
 
     let relatedDefBlockAndDocumentMap = await getBlockInfoMap(blockIdArray);
@@ -1516,6 +1595,8 @@ async function buildBacklinkPanelData(
         node.documentBlock = docBlockInfo;
     }
 
+    applyBacklinkPropagation(backlinkBlockMap, paramObj.propagationUnitArray);
+
     // let rootId = paramObj.curDocDefBlockArray[0].root_id;
     let backlinkBlockNodeArray: IBacklinkBlockNode[] = Object.values(backlinkBlockMap);
 
@@ -1529,6 +1610,79 @@ async function buildBacklinkPanelData(
 
     return backlinkPanelData;
 
+}
+
+/**
+ * 传递型反链：把命中的反链单位落到节点上。
+ * 单位下属的其它反链块全部并进触发传递的那个节点，节点自身的 block 换成文档块 / 标题块，
+ * 这样 getBacklinkDoc 返回的渲染 DOM（根节点已是文档 / 标题）才能对上号，计数也不会出现空洞。
+ */
+function applyBacklinkPropagation(
+    backlinkBlockMap: { [key: string]: IBacklinkBlockNode },
+    propagationUnitArray: IBacklinkPropagationUnit[],
+) {
+    if (isArrayEmpty(propagationUnitArray)) {
+        return;
+    }
+    for (const unit of propagationUnitArray) {
+        let hostNode = backlinkBlockMap[unit.triggerBacklinkBlockId];
+        if (!hostNode) {
+            continue;
+        }
+        let coveredBlockIdSet = new Set<string>(unit.coveredBlockIds);
+        coveredBlockIdSet.add(unit.triggerBacklinkBlockId);
+        coveredBlockIdSet.add(hostNode.block.parent_id);
+        // 合并前先留一份触发段落自身的引用，合并后就分不出来了。
+        let triggerDefBlockIdSet = new Set<string>(hostNode.includeCurBlockDefBlockIds);
+
+        for (const coveredBacklinkBlockId of unit.coveredBacklinkBlockIds) {
+            if (coveredBacklinkBlockId == unit.triggerBacklinkBlockId) {
+                continue;
+            }
+            let coveredNode = backlinkBlockMap[coveredBacklinkBlockId];
+            if (!coveredNode) {
+                continue;
+            }
+            mergeBacklinkBlockNode(hostNode, coveredNode);
+            coveredBlockIdSet.add(coveredNode.block.parent_id);
+            delete backlinkBlockMap[coveredBacklinkBlockId];
+        }
+
+        delete backlinkBlockMap[unit.triggerBacklinkBlockId];
+        hostNode.block = { ...unit.unitBlock, refCount: null };
+        hostNode.propagatedCoveredBlockIds = coveredBlockIdSet;
+        hostNode.propagatedTriggerDefBlockIds = triggerDefBlockIdSet;
+        hostNode.propagatedMarkdown = unit.scopeMarkdown;
+        // 单位已经是整篇文档 / 整个标题，列表项级别的展开收起过滤不再适用。
+        hostNode.parentListItemTreeNode = null;
+        backlinkBlockMap[hostNode.block.id] = hostNode;
+    }
+}
+
+function mergeBacklinkBlockNode(hostNode: IBacklinkBlockNode, coveredNode: IBacklinkBlockNode) {
+    coveredNode.includeDirectDefBlockIds.forEach((id) => hostNode.includeDirectDefBlockIds.add(id));
+    coveredNode.includeRelatedDefBlockIds.forEach((id) => hostNode.includeRelatedDefBlockIds.add(id));
+    coveredNode.includeCurBlockDefBlockIds.forEach((id) => hostNode.includeCurBlockDefBlockIds.add(id));
+    coveredNode.includeParentDefBlockIds.forEach((id) => hostNode.includeParentDefBlockIds.add(id));
+    mergeAnchorMap(hostNode.dynamicAnchorMap, coveredNode.dynamicAnchorMap);
+    mergeAnchorMap(hostNode.staticAnchorMap, coveredNode.staticAnchorMap);
+    hostNode.parentMarkdown += coveredNode.parentMarkdown;
+    hostNode.headlineChildMarkdown += coveredNode.headlineChildMarkdown;
+    hostNode.listItemChildMarkdown += coveredNode.listItemChildMarkdown;
+}
+
+function mergeAnchorMap(target: Map<string, Set<string>>, source: Map<string, Set<string>>) {
+    if (!source) {
+        return;
+    }
+    for (const [blockId, anchorSet] of source) {
+        let targetAnchorSet = target.get(blockId);
+        if (!targetAnchorSet) {
+            targetAnchorSet = new Set<string>();
+            target.set(blockId, targetAnchorSet);
+        }
+        anchorSet.forEach((anchor) => targetAnchorSet.add(anchor));
+    }
 }
 
 async function getBlockInfoMap(blockIds: string[]) {

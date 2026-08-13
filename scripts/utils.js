@@ -1,10 +1,19 @@
+// Shared helpers for make_dev_link / make_install / install_to_workspace
 import fs from "fs";
 import path from "node:path";
+import os from "node:os";
 import http from "node:http";
 import readline from "node:readline";
 
 const LINK_CONFIG_PATH = path.join(process.cwd(), "scripts", "link-config.json");
 const LINK_CONFIG_EXAMPLE_PATH = path.join(process.cwd(), "scripts", "link-config.example.json");
+/** SiYuan writes runtime ports / workspace list under ~/.config/siyuan/ */
+const SIYUAN_CONF_DIR = path.join(os.homedir(), ".config", "siyuan");
+const SIYUAN_PORT_JSON = path.join(SIYUAN_CONF_DIR, "port.json");
+const SIYUAN_WORKSPACE_JSON = path.join(SIYUAN_CONF_DIR, "workspace.json");
+/** Default / reverse-proxy port; actual kernel port may differ when 6806 is busy. */
+const SIYUAN_FIXED_PORT = "6806";
+const PROBE_TIMEOUT_MS = 800;
 
 export const log = (info) => console.log(`\x1B[36m%s\x1B[0m`, info);
 export const error = (info) => console.log(`\x1B[31m%s\x1B[0m`, info);
@@ -14,9 +23,10 @@ export const POST_HEADER = {
     "Content-Type": "application/json",
 };
 
-export async function myfetch(url, options) {
+export async function myfetch(url, options = {}) {
+    const { timeout = 2000, body, ...reqOptions } = options;
     return new Promise((resolve, reject) => {
-        const req = http.request(url, options, (res) => {
+        const req = http.request(url, reqOptions, (res) => {
             let data = "";
             res.on("data", (chunk) => {
                 data += chunk;
@@ -32,8 +42,119 @@ export async function myfetch(url, options) {
         req.on("error", (e) => {
             reject(e);
         });
+        req.setTimeout(timeout, () => {
+            req.destroy(new Error(`timeout after ${timeout}ms`));
+        });
+        if (body != null) {
+            req.write(body);
+        }
         req.end();
     });
+}
+
+function isProcessAlive(pid) {
+    const n = Number(pid);
+    if (!Number.isInteger(n) || n <= 0) {
+        return false;
+    }
+    try {
+        process.kill(n, 0);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Candidate ports (deduped, preferred order):
+ * SIYUAN_PORT → 6806 → ports of living PIDs in ~/.config/siyuan/port.json
+ */
+export function collectSiYuanPortCandidates() {
+    const ports = [];
+    const seen = new Set();
+    const add = (port) => {
+        const p = String(port ?? "").trim();
+        if (!/^\d+$/.test(p) || seen.has(p)) {
+            return;
+        }
+        seen.add(p);
+        ports.push(p);
+    };
+
+    if (process.env.SIYUAN_PORT) {
+        add(process.env.SIYUAN_PORT);
+    }
+    add(SIYUAN_FIXED_PORT);
+
+    if (fs.existsSync(SIYUAN_PORT_JSON)) {
+        try {
+            const pidPorts = JSON.parse(fs.readFileSync(SIYUAN_PORT_JSON, "utf8"));
+            for (const [pid, port] of Object.entries(pidPorts ?? {})) {
+                if (isProcessAlive(pid)) {
+                    add(port);
+                }
+            }
+        } catch (e) {
+            warn(`\t读取 ${SIYUAN_PORT_JSON} 失败: ${e.message}`);
+        }
+    }
+
+    return ports;
+}
+
+async function probeSiYuanVersion(port) {
+    const url = `http://127.0.0.1:${port}/api/system/version`;
+    const response = await myfetch(url, {
+        method: "GET",
+        timeout: PROBE_TIMEOUT_MS,
+    });
+    if (!response.ok) {
+        return null;
+    }
+    const conf = await response.json();
+    // SiYuan: { code: 0, data: "x.y.z" }
+    if (conf?.code === 0 && typeof conf?.data === "string" && conf.data.length > 0) {
+        return conf.data;
+    }
+    return null;
+}
+
+/**
+ * Find reachable SiYuan HTTP ports. Uses /api/system/version (no auth) to verify.
+ * @returns {Promise<string[]>}
+ */
+export async function detectSiYuanPorts() {
+    const candidates = collectSiYuanPortCandidates();
+    const checks = await Promise.all(
+        candidates.map(async (port) => {
+            try {
+                const ver = await probeSiYuanVersion(port);
+                return ver ? port : null;
+            } catch {
+                return null;
+            }
+        }),
+    );
+    return checks.filter(Boolean);
+}
+
+/** Offline fallback: read workspace list from ~/.config/siyuan/workspace.json */
+export function readWorkspacesFromConfig() {
+    if (!fs.existsSync(SIYUAN_WORKSPACE_JSON)) {
+        return null;
+    }
+    try {
+        const paths = JSON.parse(fs.readFileSync(SIYUAN_WORKSPACE_JSON, "utf8"));
+        if (!Array.isArray(paths)) {
+            return null;
+        }
+        return paths
+            .filter((p) => typeof p === "string" && p.trim() && fs.existsSync(p))
+            .map((p) => ({ path: path.resolve(p), closed: true }));
+    } catch (e) {
+        warn(`\t读取 ${SIYUAN_WORKSPACE_JSON} 失败: ${e.message}`);
+        return null;
+    }
 }
 
 export function loadLinkConfig() {
@@ -52,17 +173,13 @@ export function saveLinkConfig(workspaceDir) {
     fs.writeFileSync(
         LINK_CONFIG_PATH,
         JSON.stringify({ workspaceDir: path.resolve(workspaceDir) }, null, 2) + "\n",
-        "utf8"
+        "utf8",
     );
     log(`已保存工作空间目录到 ${LINK_CONFIG_PATH}`);
 }
 
 function cleanPath(input) {
     return input.trim().replace(/^["']|["']$/g, "");
-}
-
-function isPluginDir(dir) {
-    return dir.replace(/\\/g, "/").replace(/\/+$/, "").endsWith("/data/plugins");
 }
 
 /** 从任意输入中提取工作空间根目录 */
@@ -72,17 +189,14 @@ export function getWorkspaceDir(input) {
     if (normalized.endsWith("/data/plugins")) {
         return path.resolve(normalized.replace(/\/data\/plugins$/, ""));
     }
+    if (normalized.endsWith("/data")) {
+        return path.resolve(normalized.replace(/\/data$/, ""));
+    }
     return dir;
 }
 
 /** 将工作空间目录转换为插件目录，自动拼接 data/plugins */
 export function toPluginDir(input) {
-    const dir = path.resolve(cleanPath(input));
-
-    if (isPluginDir(dir)) {
-        return dir;
-    }
-
     const workspaceDir = getWorkspaceDir(input);
     const pluginsDir = path.join(workspaceDir, "data", "plugins");
     log(`>>> 工作空间: ${workspaceDir}`);
@@ -93,6 +207,11 @@ export function toPluginDir(input) {
 /** @deprecated 使用 toPluginDir */
 export function normalizePluginDir(input) {
     return toPluginDir(input);
+}
+
+/** @deprecated alias — prefer `toPluginDir` */
+export function resolveWorkspaceToPluginsDir(workspacePath) {
+    return toPluginDir(workspacePath);
 }
 
 function getConfigWorkspaceDir(config) {
@@ -108,10 +227,11 @@ function getConfigWorkspaceDir(config) {
 export function printResolveHelp() {
     warn("\n无法自动获取思源插件目录。");
     warn("你可以通过以下任一方式配置：\n");
-    warn("  1. 启动思源后重新运行此命令（通过 API 自动检测）");
+    warn("  1. 启动思源后重新运行此命令（通过 ~/.config/siyuan/port.json 自动检测端口）");
     warn("  2. 复制 scripts/link-config.example.json 为 scripts/link-config.json，填写 workspaceDir");
     warn("  3. 设置环境变量 SIYUAN_PLUGIN_DIR（填工作空间目录即可，会自动拼接 data/plugins）");
-    warn("  4. 在下方手动输入工作空间目录（会自动拼接 data/plugins）\n");
+    warn("  4. 设置环境变量 SIYUAN_PORT（内核监听非默认端口时）");
+    warn("  5. 在下方手动输入工作空间目录（会自动拼接 data/plugins）\n");
     if (fs.existsSync(LINK_CONFIG_EXAMPLE_PATH)) {
         warn(`  配置示例: ${LINK_CONFIG_EXAMPLE_PATH}`);
     }
@@ -147,6 +267,10 @@ async function promptSaveConfig() {
     return answer === "" || answer.toLowerCase() === "y" || answer.toLowerCase() === "yes";
 }
 
+/**
+ * 解析 `<workspace>/data/plugins`，优先级：
+ * manual target → link-config.json → 运行中的思源 API → SIYUAN_PLUGIN_DIR → 交互输入
+ */
 export async function resolvePluginDir(options = {}) {
     const { manualTarget = "" } = options;
 
@@ -162,7 +286,7 @@ export async function resolvePluginDir(options = {}) {
         return toPluginDir(workspaceFromConfig);
     }
 
-    log(">>> 尝试自动获取思源工作空间（需要思源正在运行）...");
+    log(">>> 尝试自动获取思源工作空间...");
     const workspaces = await getSiYuanDir();
     if (workspaces?.length > 0) {
         return await chooseTarget(workspaces);
@@ -187,44 +311,86 @@ export async function resolvePluginDir(options = {}) {
     return pluginDir;
 }
 
-export async function getSiYuanDir() {
-    const url = "http://127.0.0.1:6806/api/system/getWorkspaces";
+async function fetchWorkspacesFromPort(port) {
+    const url = `http://127.0.0.1:${port}/api/system/getWorkspaces`;
+    const response = await myfetch(url, {
+        method: "POST",
+        headers: POST_HEADER,
+        timeout: PROBE_TIMEOUT_MS,
+    });
+    let conf;
     try {
-        const response = await myfetch(url, {
-            method: "POST",
-            headers: POST_HEADER,
-        });
-        if (!response.ok) {
-            error(`\tHTTP 请求失败: ${response.status}`);
-            return null;
-        }
-        const conf = await response.json();
-        return conf?.data;
-    } catch (e) {
-        error(`\t无法连接思源 API (127.0.0.1:6806): ${e.message}`);
-        error("\t请确认思源已启动，或配置 scripts/link-config.json");
-        return null;
+        conf = await response.json();
+    } catch {
+        throw new Error(`HTTP ${response.status} (invalid JSON)`);
     }
+    if (!response.ok || conf?.code !== 0) {
+        throw new Error(conf?.msg || `HTTP ${response.status}`);
+    }
+    if (!Array.isArray(conf?.data)) {
+        throw new Error("unexpected getWorkspaces payload");
+    }
+    return conf.data;
+}
+
+/**
+ * 解析工作空间列表：
+ * 1. 探测思源端口（SIYUAN_PORT / 6806 / port.json 中存活进程的端口）
+ * 2. 回退到 ~/.config/siyuan/workspace.json（内核未运行时也可用）
+ */
+export async function getSiYuanDir() {
+    const ports = await detectSiYuanPorts();
+    if (ports.length > 0) {
+        log(`>>> 检测到思源端口: ${ports.map((p) => `127.0.0.1:${p}`).join(", ")}`);
+        const errors = [];
+        for (const port of ports) {
+            try {
+                const data = await fetchWorkspacesFromPort(port);
+                if (data.length > 0) {
+                    log(`>>> 从 API 获取工作空间 (port ${port})`);
+                    return data;
+                }
+                errors.push(`${port}: 工作空间列表为空（可能需要鉴权？）`);
+            } catch (e) {
+                errors.push(`${port}: ${e.message}`);
+            }
+        }
+        warn(`\t在已检测端口上 getWorkspaces 失败: ${errors.join("; ")}`);
+    } else {
+        warn("\t未检测到运行中的思源 HTTP 端口（已尝试 6806 + ~/.config/siyuan/port.json）");
+    }
+
+    const fromFile = readWorkspacesFromConfig();
+    if (fromFile?.length > 0) {
+        warn(`>>> 使用离线工作空间列表: ${SIYUAN_WORKSPACE_JSON}`);
+        return fromFile;
+    }
+
+    error("\t无法解析思源工作空间。");
+    error("\t请启动思源，或配置 scripts/link-config.json / SIYUAN_PLUGIN_DIR");
+    return null;
 }
 
 export async function chooseTarget(workspaces) {
     const count = workspaces.length;
     log(`>>> 检测到 ${count} 个思源工作空间`);
     workspaces.forEach((workspace, i) => {
-        log(`\t[${i}] ${workspace.path}`);
+        const mark = workspace.closed === false ? " (已打开)" : workspace.closed === true ? " (已关闭)" : "";
+        log(`\t[${i}] ${workspace.path}${mark}`);
     });
 
     if (count === 1) {
-        return `${workspaces[0].path}/data/plugins`;
+        return toPluginDir(workspaces[0].path);
     }
 
-    const index = await ask(`\t请选择工作空间 [0-${count - 1}]: `);
-    const workspace = workspaces[Number(index)];
-    if (!workspace) {
-        error(`无效的选择: ${index}`);
-        return null;
+    while (true) {
+        const answer = await ask(`\t请选择工作空间 [0-${count - 1}]: `);
+        const index = Number.parseInt(answer, 10);
+        if (!Number.isNaN(index) && index >= 0 && index < count) {
+            return toPluginDir(workspaces[index].path);
+        }
+        error(`\t无效的选择: "${answer}"`);
     }
-    return `${workspace.path}/data/plugins`;
 }
 
 export function cmpPath(path1, path2) {
@@ -306,6 +472,8 @@ export function copyDirectory(srcDir, dstDir) {
 
 export function makeSymbolicLink(srcPath, targetPath) {
     if (!fs.existsSync(targetPath)) {
+        // Go 1.23 no longer supports junctions as symlinks:
+        // https://github.com/siyuan-note/siyuan/issues/12399
         fs.symlinkSync(srcPath, targetPath, "dir");
         log(`完成！已创建符号链接 ${targetPath} -> ${srcPath}`);
         return true;
