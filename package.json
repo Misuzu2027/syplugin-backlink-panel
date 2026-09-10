@@ -1,6 +1,6 @@
 {
   "name": "syplugin-backlink-panel",
-  "version": "0.0.34",
+  "version": "0.0.35",
   "type": "module",
   "description": "SiYuan plugin: filterable backlink panel with dock, document bottom panel, and tab views.",
   "repository": {

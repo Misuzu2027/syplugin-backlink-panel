@@ -9,7 +9,8 @@ import {
     generateGetListItemChildBlockArraySql,
     generateGetListItemtSubMarkdownArraySql,
     generateGetParenListItemtDefBlockArraySql,
-    generateGetParentDefBlockArraySql
+    generateGetParentDefBlockArraySql,
+    generateGetRefsByBlockIdsSql
 } from "./backlink-sql";
 import {
     IBacklinkBlockNode,
@@ -36,6 +37,7 @@ import { SettingService } from "../setting/SettingService";
 import { stringToDom } from "@/utils/html-util";
 import { getQueryStrByBlock, NewNodeID } from "@/utils/siyuan-util";
 import { buildBacklinkPropagationUnitArray, IBacklinkPropagationUnit } from "./backlink-propagation";
+import { collapseMirrorAvBacklinkNodes, mergeAttributeViewMirrorBacklinks } from "./backlink-av-item";
 
 
 export async function getBacklinkPanelRenderData(
@@ -77,7 +79,12 @@ export async function getBacklinkPanelRenderData(
     }
     // highlightBacklinkContent(backlinkCacheData.backlinks, queryParams.keywordStr);
 
-    let backlinkDataArray = backlinkCacheData.backlinks;
+    let backlinkDataArray = mergeAttributeViewMirrorBacklinks(backlinkCacheData.backlinks);
+    validBacklinkBlockNodeArray = await collapseMirrorAvBacklinkNodes(
+        validBacklinkBlockNodeArray,
+        backlinkDataArray,
+    );
+    totalPage = calculateTotalPages(validBacklinkBlockNodeArray.length, pageSize);
     let usedCache = backlinkCacheData.usedCache;
 
     let filterCurDocDefBlockArray = filterExistingDefBlocks(
@@ -150,12 +157,20 @@ export async function getTurnPageBacklinkPanelRenderData(
     }
     // highlightBacklinkContent(backlinkCacheData.backlinks, queryParams.keywordStr);
 
-    let backlinkDataArray = backlinkCacheData.backlinks;
+    let backlinkDataArray = mergeAttributeViewMirrorBacklinks(backlinkCacheData.backlinks);
+    validBacklinkBlockNodeArray = await collapseMirrorAvBacklinkNodes(
+        validBacklinkBlockNodeArray,
+        backlinkDataArray,
+    );
+    totalPage = calculateTotalPages(validBacklinkBlockNodeArray.length, pageSize);
+    if (pageNum > totalPage) {
+        pageNum = totalPage || 1;
+    }
     let usedCache = backlinkCacheData.usedCache;
     let backlinkPanelRenderDataResult: IBacklinkPanelRenderData = {
         rootId,
         backlinkDataArray: backlinkDataArray,
-        backlinkBlockNodeArray: null,
+        backlinkBlockNodeArray: validBacklinkBlockNodeArray,
         curDocDefBlockArray: null,
         relatedDefBlockArray: null,
         backlinkDocumentArray: null,
@@ -516,7 +531,12 @@ function getBacklinkDocQueryDefId(node: IBacklinkBlockNode): string {
             return triggerDefId;
         }
     }
-    return intersectionSet(node.includeCurBlockDefBlockIds, node.includeDirectDefBlockIds)[0];
+    let defId = intersectionSet(node.includeCurBlockDefBlockIds, node.includeDirectDefBlockIds)[0];
+    if (defId) {
+        return defId;
+    }
+    // 数据库文本单元格等：定义块从 refs 补进来后两个集合应已对齐，再兜底一次。
+    return [...(node.includeDirectDefBlockIds || [])][0];
 }
 
 /**
@@ -1268,6 +1288,7 @@ async function buildBacklinkPanelData(
     // 整个活，把关联的块的时间修改为反链块的时间。 map 的键是关联块的id
     let backlinkBlockCreatedMap = new Map<string, string>();
     let backlinkBlockUpdatedMap = new Map<string, string>();
+    let avRefsByBlockId = await getAttributeViewRefsByBlockIds(paramObj.backlinkBlockArray);
 
     for (const backlinkBlock of paramObj.backlinkBlockArray) {
         let backlinkBlockNode: IBacklinkBlockNode = {
@@ -1292,9 +1313,19 @@ async function buildBacklinkPanelData(
             backlinkBlockNode.block.markdown = result.embedBlockmarkdown;
             relatedDefBlockIdArray.push(...result.relatedDefBlockIdArray)
         }
+        if (backlinkBlock.type == "av") {
+            applyAttributeViewTextCellRefs(backlinkBlock, avRefsByBlockId.get(backlinkBlock.id));
+            backlinkBlockNode.block.markdown = backlinkBlock.markdown;
+        }
 
         let markdown = backlinkBlock.markdown;
         relatedDefBlockIdArray.push(...getRefBlockId(markdown));
+        if (backlinkBlock.type == "av") {
+            relatedDefBlockIdArray.push(...collectMissingAvRefDefBlockIds(
+                relatedDefBlockIdArray,
+                avRefsByBlockId.get(backlinkBlock.id),
+            ));
+        }
 
         for (const relatedDefBlockId of relatedDefBlockIdArray) {
             backlinkBlockNode.includeRelatedDefBlockIds.add(relatedDefBlockId)
@@ -1694,6 +1725,94 @@ async function getBlockInfoMap(blockIds: string[]) {
         blockMap.set(block.id, block);
     }
     return blockMap;
+}
+
+type BacklinkRefRow = {
+    block_id: string;
+    def_block_id: string;
+    markdown: string;
+    content: string;
+    type: string;
+};
+
+/**
+ * 数据库文本单元格里的块引用只写在 AV JSON，由内核索引进 refs（type='av'，block_id 是载体数据库块）。
+ * 这里按载体块把 refs 捞回来，补 markdown / 定义块，后面才能调 getBacklinkDoc，筛选和锚文本也能用。
+ */
+async function getAttributeViewRefsByBlockIds(
+    backlinkBlockArray: BacklinkBlock[],
+): Promise<Map<string, BacklinkRefRow[]>> {
+    let result = new Map<string, BacklinkRefRow[]>();
+    if (isArrayEmpty(backlinkBlockArray)) {
+        return result;
+    }
+    let avBlockIds: string[] = [];
+    for (const backlinkBlock of backlinkBlockArray) {
+        if (backlinkBlock && backlinkBlock.type == "av" && isStrNotBlank(backlinkBlock.id)) {
+            avBlockIds.push(backlinkBlock.id);
+        }
+    }
+    if (isArrayEmpty(avBlockIds)) {
+        return result;
+    }
+    let refsSql = generateGetRefsByBlockIdsSql(avBlockIds);
+    if (isStrBlank(refsSql)) {
+        return result;
+    }
+    let rows: BacklinkRefRow[] = await sql(refsSql);
+    rows = rows ? rows : [];
+    for (const row of rows) {
+        if (!row || isStrBlank(row.block_id)) {
+            continue;
+        }
+        let list = result.get(row.block_id);
+        if (!list) {
+            list = [];
+            result.set(row.block_id, list);
+        }
+        list.push(row);
+    }
+    return result;
+}
+
+function applyAttributeViewTextCellRefs(
+    backlinkBlock: BacklinkBlock,
+    avRefs: BacklinkRefRow[],
+) {
+    if (isArrayEmpty(avRefs)) {
+        return;
+    }
+    let markdownParts: string[] = [];
+    if (isStrNotBlank(backlinkBlock.markdown)) {
+        markdownParts.push(backlinkBlock.markdown);
+    }
+    for (const ref of avRefs) {
+        if (isStrNotBlank(ref.markdown)) {
+            markdownParts.push(ref.markdown);
+        } else if (isStrNotBlank(ref.content)) {
+            markdownParts.push(ref.content);
+        }
+    }
+    backlinkBlock.markdown = markdownParts.join(" ");
+}
+
+function collectMissingAvRefDefBlockIds(
+    existingDefBlockIds: string[],
+    avRefs: BacklinkRefRow[],
+): string[] {
+    let missing: string[] = [];
+    if (isArrayEmpty(avRefs)) {
+        return missing;
+    }
+    let existing = new Set(existingDefBlockIds);
+    for (const ref of avRefs) {
+        if (isStrBlank(ref.def_block_id) || existing.has(ref.def_block_id)) {
+            continue;
+        }
+        existing.add(ref.def_block_id);
+        missing.push(ref.def_block_id);
+    }
+    return missing;
 }
 
 async function getBacklinkEmbedBlockInfo(

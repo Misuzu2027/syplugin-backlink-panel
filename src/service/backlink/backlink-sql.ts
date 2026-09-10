@@ -363,6 +363,29 @@ export function generateGetListItemChildBlockArraySql(
     return cleanSpaceText(sql);
 }
 
+/**
+ * 按引用块 id 查 refs。数据库文本单元格的块引用只写在 AV JSON 里，
+ * 载体块（type=av）的 blocks.markdown 没有 ((id))，定义块和锚文本只能从这里补。
+ */
+export function generateGetRefsByBlockIdsSql(
+    blockIds: string[],
+): string {
+    if (isArrayEmpty(blockIds)) {
+        return "";
+    }
+    let idInSql = generateAndInConditions("block_id", blockIds);
+
+    let sql = `
+    SELECT block_id, def_block_id, markdown, content, type
+    FROM refs
+    WHERE 1 = 1
+    ${idInSql}
+    LIMIT 999999999;
+    `
+    return cleanSpaceText(sql);
+}
+
+
 export function generateGetBlockArraySql(
     blockIds: string[],
 ): string {

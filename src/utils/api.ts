@@ -585,3 +585,30 @@ export async function getBacklink2(id: string, k: string, mk: string, sort: stri
 
     return request(url, data);
 }
+
+
+/**
+ * 读一个数据库条目的全部字段。传 avID + itemID（或 valueID）时走条目自身，
+ * 不依赖当前视图的过滤 / 分组，绑定块和游离条目都能用。
+ */
+export async function getAttributeViewKeys(param: {
+    id: string,
+    avID?: string,
+    itemID?: string,
+    valueID?: string,
+}): Promise<IAttributeViewItemKeys[]> {
+    let data = await request("/api/av/getAttributeViewKeys", param);
+    return Array.isArray(data) ? data : [];
+}
+
+export async function getMirrorDatabaseBlocks(avID: string): Promise<string[]> {
+    if (!avID) {
+        return [];
+    }
+    let data = await request("/api/av/getMirrorDatabaseBlocks", { avID });
+    let refDefs = data?.refDefs;
+    if (!Array.isArray(refDefs)) {
+        return [];
+    }
+    return refDefs.map((item) => item?.refID).filter((id) => !!id);
+}

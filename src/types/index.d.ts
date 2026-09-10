@@ -144,10 +144,96 @@ interface IBreadcrumb {
     children: [];
 }
 
+interface IBacklinkAVMatch {
+    itemID: string;
+    keyID: string;
+    valueID: string;
+    title: string;
+    keyName: string;
+    defIDs: string[];
+}
+
+interface IBacklinkAVTarget {
+    blockID: string;
+    matches: IBacklinkAVMatch[];
+}
+
+interface IBacklinkAVItemPreview {
+    avID: string;
+    itemID: string;
+    valueID: string;
+    title: string;
+    keyIDs: string[];
+    valueIDs: string[];
+    databaseBlockID: string;
+    notebookId: string;
+}
+
+interface IAttributeViewItemKey {
+    type: string;
+    name: string;
+    desc?: string;
+    icon?: string;
+    id: string;
+    dateFormat?: string;
+    renderTemplate?: string;
+    options?: { name: string, color: string }[];
+}
+
+interface IAttributeViewCellValue {
+    keyID?: string;
+    id?: string;
+    blockID?: string;
+    isDetached?: boolean;
+    type?: string;
+    renderedContent?: string;
+    text?: { content?: string, rich?: { content?: string } };
+    block?: { id?: string, content?: string, icon?: string };
+    number?: { content?: number, isNotEmpty?: boolean, formattedContent?: string };
+    mSelect?: { content?: string, color?: string }[];
+    date?: IAttributeViewDateValue;
+    created?: IAttributeViewDateValue;
+    updated?: IAttributeViewDateValue;
+    url?: { content?: string };
+    email?: { content?: string };
+    phone?: { content?: string };
+    checkbox?: { checked?: boolean };
+    relation?: { contents?: IAttributeViewCellValue[], blockIDs?: string[] };
+    mAsset?: { type?: string, name?: string, content?: string }[];
+    template?: { content?: string };
+    rollup?: { contents?: IAttributeViewCellValue[] };
+}
+
+interface IAttributeViewDateValue {
+    content?: number;
+    content2?: number;
+    isNotEmpty?: boolean;
+    isNotEmpty2?: boolean;
+    isNotTime?: boolean;
+    hasEndDate?: boolean;
+    formattedContent?: string;
+}
+
+interface IAttributeViewItemKeyValue {
+    key: IAttributeViewItemKey;
+    values: IAttributeViewCellValue[];
+}
+
+interface IAttributeViewItemKeys {
+    keyValues: IAttributeViewItemKeyValue[];
+    blockIDs: string[];
+    avID: string;
+    avName: string;
+}
+
 interface IBacklinkData {
     // 内核返回的反链单位块 id。传递型反链下它是文档块 / 标题块 id，
     // 而渲染 DOM 的根节点是该单位的第一个子块，两者并不相同。
     id?: string;
+    // 数据库文本单元格引用：内核附带命中行/列，官方 Protyle 用来定位并高亮对应单元格。
+    attributeViewTargets?: IBacklinkAVTarget[];
+    // 镜像合并后的条目预览：一条反链对应一个数据库条目（主键）。
+    avItemPreview?: IBacklinkAVItemPreview;
     blockPaths: IBreadcrumb[];
     dom: string;
     expand: boolean;

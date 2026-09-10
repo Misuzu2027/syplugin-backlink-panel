@@ -33,6 +33,43 @@ div.backlink-panel__area .sy__backlink .protyle .protyle-wysiwyg [data-node-id].
     z-index: 0;
 }
 
+div.backlink-panel__area .sy__backlink .protyle .protyle-wysiwyg [data-type="NodeAttributeView"] {
+    overflow-x: auto;
+}
+
+div.backlink-panel__area .sy__backlink .list-item__av-name .expand-listitem-icon,
+div.backlink-panel__area .sy__backlink .list-item__av-name .collapse-listitem-icon {
+    display: none;
+}
+
+div.backlink-panel__area .backlink-panel__av-protyle .protyle-breadcrumb__bar,
+div.backlink-panel__area .backlink-panel__av-protyle .protyle-wysiwyg>[data-node-id][data-backlink-av-table-hidden] {
+    display: none;
+}
+
+div.backlink-panel__area .backlink-panel__av-protyle .protyle-wysiwyg {
+    padding-top: 0;
+    padding-bottom: 4px;
+}
+
+div.backlink-panel__area .backlink-panel__av-items {
+    margin: 0;
+}
+
+div.backlink-panel__area .backlink-panel__av-item {
+    margin: 0;
+    overflow: hidden;
+}
+
+div.backlink-panel__area .backlink-panel__av-item.protyle-db-row__body {
+    margin: 0 8px 4px;
+}
+
+div.backlink-panel__area .backlink-panel__av-row--hit {
+    background-color: var(--b3-protyle-inline-mark-background);
+    border-radius: var(--b3-border-radius);
+}
+
 
 div.backlink-panel__area .block__icon--show.block__icon.disabled {
     opacity: 0.38;

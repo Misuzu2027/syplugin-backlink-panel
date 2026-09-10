@@ -58,6 +58,11 @@
     import { delayedTwiceRefresh } from "@/utils/timing-util";
     import { getBlockIsFolded } from "@/utils/api";
     import { getOpenTabActionByZoomIn } from "@/utils/siyuan-util";
+    import {
+        getAttributeViewItemPreviewFromElement,
+        openAttributeViewItemTab,
+        replaceAttributeViewTablesWithItemPreviews,
+    } from "@/service/backlink/backlink-av-item";
 
     export let rootId: string;
     export let focusBlockId: string;
@@ -171,9 +176,7 @@
     function clickBacklinkDocumentLiElement(event: MouseEvent) {
         const target = event.currentTarget as HTMLElement;
         if (event.ctrlKey) {
-            let rootId = target.getAttribute("data-node-id");
-            let blockId = target.getAttribute("data-backlink-block-id");
-            openBlockTab(rootId, blockId);
+            openBacklinkDocumentOrAvItem(target);
             return;
         }
         toggleBacklinkDocument(target);
@@ -181,10 +184,18 @@
 
     function contextmenuBacklinkDocumentLiElement(event: MouseEvent) {
         const target = event.currentTarget as HTMLElement;
+        openBacklinkDocumentOrAvItem(target);
+        return;
+    }
+
+    function openBacklinkDocumentOrAvItem(target: HTMLElement) {
+        let avItem = getAttributeViewItemPreviewFromElement(target);
+        if (avItem && openAttributeViewItemTab(avItem)) {
+            return;
+        }
         let rootId = target.getAttribute("data-node-id");
         let blockId = target.getAttribute("data-backlink-block-id");
         openBlockTab(rootId, blockId);
-        return;
     }
 
     function toggleBacklinkDocument(documentLiElement: HTMLElement) {
@@ -642,7 +653,14 @@
             pageBacklinkPanelRenderData.pageNum;
         backlinkFilterPanelRenderData.usedCache =
             pageBacklinkPanelRenderData.usedCache;
+        if (pageBacklinkPanelRenderData.backlinkBlockNodeArray) {
+            backlinkFilterPanelRenderData.backlinkBlockNodeArray =
+                pageBacklinkPanelRenderData.backlinkBlockNodeArray;
+            backlinkFilterPanelRenderData.totalPage =
+                pageBacklinkPanelRenderData.totalPage;
+        }
         queryParams = queryParams;
+        backlinkFilterPanelRenderData = backlinkFilterPanelRenderData;
 
         refreshBacklinkPreview();
     }
@@ -736,9 +754,11 @@
         let backlinkBlockId = documentLiElement.getAttribute(
             "data-backlink-block-id",
         );
+        let foldKey =
+            documentLiElement.getAttribute("data-fold-key") || backlinkBlockId;
         let closeStatus = documentLiElement.classList.contains("backlink-hide");
         if (closeStatus) {
-            backlinkDocumentFoldMap.set(backlinkBlockId, true);
+            backlinkDocumentFoldMap.set(foldKey, true);
         }
 
         let protyleWysiwygElement = editor.protyle.contentElement.querySelector(
@@ -756,7 +776,7 @@
                 ),
             );
         }
-        let foldSet = backlinkProtyleItemFoldMap.get(backlinkBlockId);
+        let foldSet = backlinkProtyleItemFoldMap.get(foldKey);
         if (!foldSet) {
             foldSet = new Set<string>();
         }
@@ -765,9 +785,9 @@
             let nodeId = itemElement.getAttribute("data-node-id");
             foldSet.add(nodeId);
         }
-        backlinkProtyleItemFoldMap.set(backlinkBlockId, foldSet);
+        backlinkProtyleItemFoldMap.set(foldKey, foldSet);
 
-        backlinkProtyleHeadingExpandMap.set(backlinkBlockId, expandHeadingMore);
+        backlinkProtyleHeadingExpandMap.set(foldKey, expandHeadingMore);
     }
 
     function batchCreateOfficialBacklinkProtyle(
@@ -796,16 +816,21 @@
             let backlinkRootId = backlinkNode.root_id;
             // let backlinkRootId = backlinkDoc.blockPaths[0].id;
 
+            let avItemPreview = backlinkDoc.avItemPreview;
             let documentLiElement = createdDocumentLiElement(
-                documentName,
+                avItemPreview?.title || documentName,
                 backlinkBlockId,
                 backlinkRootId,
-                backlinkNode.content,
+                avItemPreview?.title || backlinkNode.content,
+                avItemPreview,
             );
 
             let backlinks: IBacklinkData[] = [backlinkDoc];
             const editorElement = document.createElement("div");
             editorElement.style.minHeight = "auto";
+            if (avItemPreview) {
+                editorElement.classList.add("backlink-panel__av-protyle");
+            }
 
             backlinkULElement.append(editorElement);
             const editor = new Protyle(EnvConfig.ins.app, editorElement, {
@@ -843,16 +868,19 @@
             });
         });
         let protyleContentElement = protyle.protyle.contentElement;
+        let avItemPreviewPromise = replaceAttributeViewTablesWithItemPreviews(backlinkData, protyle);
 
         let backlinkBlockId = backlinkData.backlinkBlock.id;
+        let foldKey =
+            documentLiElement.getAttribute("data-fold-key") || backlinkBlockId;
 
         // 是否折叠反链文档
-        if (backlinkDocumentFoldMap.get(backlinkBlockId) === true) {
+        if (backlinkDocumentFoldMap.get(foldKey) === true) {
             collapseBacklinkDocument(documentLiElement);
         }
 
         // 展开列表项，首先判断有没有历史记录，存在历史记录则用记录
-        let foldIdSet = backlinkProtyleItemFoldMap.get(backlinkBlockId);
+        let foldIdSet = backlinkProtyleItemFoldMap.get(foldKey);
         if (foldIdSet) {
             foldListItemNodeByIdSet(protyleContentElement, foldIdSet);
         } else {
@@ -868,7 +896,7 @@
 
         // 展开大纲下的子内容
         let expandHeadingMore =
-            backlinkProtyleHeadingExpandMap.get(backlinkBlockId);
+            backlinkProtyleHeadingExpandMap.get(foldKey);
 
         if (expandHeadingMore) {
             expandBacklinkHeadingMore(protyleContentElement);
@@ -907,6 +935,21 @@
         delayedTwiceRefresh(() => {
             highlightElementTextByCss(protyleContentElement, keywordArray);
         }, 100);
+        void avItemPreviewPromise.then((avTitle) => {
+            if (avTitle) {
+                let titleElement = documentLiElement.querySelector(
+                    ".b3-list-item__text",
+                );
+                if (titleElement) {
+                    titleElement.textContent = avTitle;
+                    titleElement.setAttribute("aria-label", avTitle);
+                }
+                if (backlinkData.avItemPreview) {
+                    backlinkData.avItemPreview.title = avTitle;
+                }
+            }
+            highlightElementTextByCss(protyleContentElement, keywordArray);
+        });
 
         // 主要防止手机端侧边栏上下滑动导致退回
         protyleContentElement.addEventListener("touchend", (event) => {
@@ -1029,6 +1072,7 @@
         backlinkBlockId: string,
         backlinkRootId: string,
         docAriaText: string,
+        avItemPreview?: IBacklinkAVItemPreview,
     ): HTMLElement {
         let documentLiElement = document.createElement("li");
 
@@ -1042,21 +1086,53 @@
             "data-backlink-block-id",
             backlinkBlockId,
         );
+        if (avItemPreview) {
+            documentLiElement.classList.add("list-item__av-name");
+            documentLiElement.setAttribute("data-av-id", avItemPreview.avID);
+            documentLiElement.setAttribute("data-item-id", avItemPreview.itemID);
+            documentLiElement.setAttribute(
+                "data-value-id",
+                avItemPreview.valueID || "",
+            );
+            documentLiElement.setAttribute(
+                "data-av-block-id",
+                avItemPreview.databaseBlockID || "",
+            );
+            documentLiElement.setAttribute(
+                "data-notebook-id",
+                avItemPreview.notebookId || "",
+            );
+            documentLiElement.setAttribute(
+                "data-fold-key",
+                `av:${avItemPreview.avID}:${avItemPreview.itemID}`,
+            );
+        }
         if (docAriaText) {
             docAriaText = docAriaText.substring(0, 100);
         }
+        let iconHref = avItemPreview ? "#iconDatabase" : "#iconFile";
+        let iconClass = avItemPreview
+            ? "b3-list-item__graphic"
+            : "b3-list-item__graphic popover__block";
 
         documentLiElement.innerHTML = `
 <span style="padding-left: 4px;margin-right: 2px" class="b3-list-item__toggle b3-list-item__toggle--hl">
 <svg class="b3-list-item__arrow b3-list-item__arrow--open"><use xlink:href="#iconRight"></use></svg>
 </span>
-<svg class="b3-list-item__graphic popover__block"><use xlink:href="#iconFile"></use></svg>
-<span class="b3-list-item__text ariaLabel"  aria-label="${docAriaText}"  >
-${documentName}
-</span>
+<svg class="${iconClass}"><use xlink:href="${iconHref}"></use></svg>
+<span class="b3-list-item__text ariaLabel"></span>
 <svg class="b3-list-item__graphic counter ariaLabel expand-listitem-icon" aria-label="展开所有列表项"><use xlink:href="#iconLiElementExpand"></use></svg>
 <svg class="b3-list-item__graphic counter ariaLabel collapse-listitem-icon" aria-label="折叠所有列表项"><use xlink:href="#iconLiElementCollapse"></use></svg>
 `;
+        let titleElement = documentLiElement.querySelector(
+            ".b3-list-item__text",
+        );
+        if (titleElement) {
+            titleElement.textContent = documentName || "";
+            if (docAriaText) {
+                titleElement.setAttribute("aria-label", docAriaText);
+            }
+        }
         documentLiElement.addEventListener("click", (event: MouseEvent) => {
             clickBacklinkDocumentLiElement(event);
         });
@@ -1079,19 +1155,15 @@ ${documentName}
         });
 
         documentLiElement
-            .querySelector(
-                "li > svg.b3-list-item__graphic.counter.ariaLabel.expand-listitem-icon",
-            )
-            .addEventListener("click", (event: MouseEvent) => {
+            .querySelector(".expand-listitem-icon")
+            ?.addEventListener("click", (event: MouseEvent) => {
                 clickExpandAllListItemNode(event);
                 event.stopPropagation();
             });
 
         documentLiElement
-            .querySelector(
-                "li > svg.b3-list-item__graphic.counter.ariaLabel.collapse-listitem-icon",
-            )
-            .addEventListener("click", (event: MouseEvent) => {
+            .querySelector(".collapse-listitem-icon")
+            ?.addEventListener("click", (event: MouseEvent) => {
                 clickCollapseAllListItemNode(event);
                 event.stopPropagation();
             });
