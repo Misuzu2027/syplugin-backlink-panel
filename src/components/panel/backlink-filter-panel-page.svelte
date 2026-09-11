@@ -22,6 +22,7 @@
         defBlockArraySort,
         getBacklinkPanelData,
         getBacklinkPanelRenderData,
+        getOrFetchDocumentBlock,
         getTurnPageBacklinkPanelRenderData,
     } from "@/service/backlink/backlink-data";
     import {
@@ -54,7 +55,16 @@
     import { getBlockTypeIconHref } from "@/utils/icon-util";
     import { CacheManager } from "@/config/CacheManager";
     import { BacklinkFilterPanelAttributeService } from "@/service/setting/BacklinkPanelFilterCriteriaService";
+    import { openBacklinkNotebookFilterMenu } from "@/service/backlink/backlink-notebook-filter-menu";
+    import {
+        applyDailyNoteFilter,
+        getDailyNoteFilterMode,
+        openBacklinkDailyNoteFilterMenu,
+        type DailyNoteFilterMode,
+    } from "@/service/backlink/backlink-daily-note-filter";
     import { SettingService } from "@/service/setting/SettingService";
+    import { openSettingsDialog } from "@/components/setting/setting-util";
+    import { setReplacer, setReviver } from "@/utils/json-util";
     import { delayedTwiceRefresh } from "@/utils/timing-util";
     import { getBlockIsFolded } from "@/utils/api";
     import { getOpenTabActionByZoomIn } from "@/utils/siyuan-util";
@@ -67,6 +77,7 @@
     export let rootId: string;
     export let focusBlockId: string;
     export let currentTab: Custom;
+    export let enableDockMinimize: boolean = false;
     // 用来监听变化
     let previousRootId: string;
     let previousFocusBlockId: string;
@@ -107,15 +118,38 @@
     export let panelBacklinkViewExpand: boolean = true;
     let displayHintPanelBaseDataCacheUsage: boolean = false;
     let displayHintBacklinkBlockCacheUsage: boolean = false;
+    $: isCacheUsed =
+        displayHintPanelBaseDataCacheUsage ||
+        displayHintBacklinkBlockCacheUsage;
     let hideBacklinkProtyleBreadcrumb: boolean = false;
     let showSaveCriteriaInputBox: boolean = false;
     let saveCriteriaInputText: string = "";
+    let currentDocumentFilterState: "optional" | "selected" | "excluded" =
+        "optional";
+    let dailyNoteFilterState: "optional" | "selected" | "excluded" = "optional";
+    let excludedNotebookCount = 0;
+    let currentDocumentTitle = "";
+    let loadedPanelMode: PanelMode | "" = "";
+    let panelDataLoading = false;
+    let dataRequestSeq = 0;
+    $: statusBarTitle =
+        currentDocumentTitle || EnvConfig.ins.i18n.panelStatusTitle;
+    $: showDockMinimize = enableDockMinimize && !EnvConfig.ins.isMobile;
+    $: hasSourceItems =
+        !panelDataLoading &&
+        loadedPanelMode == panelMode &&
+        backlinkFilterPanelBaseData?.rootId == rootId &&
+        isArrayNotEmpty(backlinkFilterPanelBaseData?.backlinkBlockNodeArray);
+    $: isCurrentDocEmpty =
+        !panelDataLoading &&
+        Boolean(rootId) &&
+        loadedPanelMode == panelMode &&
+        backlinkFilterPanelBaseData?.rootId == rootId &&
+        isArrayEmpty(backlinkFilterPanelBaseData?.backlinkBlockNodeArray);
 
-    $: updateLastCriteria(
-        queryParams,
-        panelFilterViewExpand,
-        // panelBacklinkViewExpand,
-    );
+    $: refreshCurrentDocumentTitle(rootId);
+
+    $: updateLastCriteria(queryParams, panelFilterViewExpand);
 
     onMount(async () => {
         doubleClickTimeout =
@@ -140,7 +174,6 @@
     function updateLastCriteria(
         queryParams: IPanelRednerFilterQueryParams,
         backlinkPanelFilterViewExpand: boolean,
-        // backlinkPanelBacklinkViewExpand: boolean,
     ) {
         if (!rootId || !queryParams) {
             return;
@@ -148,7 +181,6 @@
         let criteria: BacklinkPanelFilterCriteria = {
             queryParams,
             backlinkPanelFilterViewExpand,
-            // backlinkPanelBacklinkViewExpand,
         };
         BacklinkFilterPanelAttributeService.ins.updatePanelCriteria(
             rootId,
@@ -223,19 +255,22 @@
             .classList.remove("b3-list-item__arrow--open");
     }
 
+    function isModifierClick(event: MouseEvent): boolean {
+        return Boolean(event && (event.ctrlKey || event.metaKey));
+    }
+
     function expandAllBacklinkDocument(event: MouseEvent) {
-        if (event) {
+        if (isModifierClick(event)) {
+            event.preventDefault();
+            expandAllBacklinkListItemNode(event);
+            return;
         }
-        // 左键点击展开所有文档
-        // if (event.button === 0) {
         let documentLiElementArray = backlinkULElement.querySelectorAll(
             "li.list-item__document-name",
         );
         for (const documentLiElement of documentLiElementArray) {
             expandBacklinkDocument(documentLiElement as HTMLElement);
         }
-        return;
-        // }
     }
 
     function expandAllBacklinkListItemNode(event: MouseEvent) {
@@ -254,17 +289,17 @@
     }
 
     function collapseAllBacklinkDocument(event: MouseEvent) {
-        if (event) {
+        if (isModifierClick(event)) {
+            event.preventDefault();
+            collapseAllBacklinkListItemNode(event);
+            return;
         }
-        // 左键点击折叠所有文档
-        // if (event.button === 0) {
         let documentLiElementArray = backlinkULElement.querySelectorAll(
             "li.list-item__document-name",
         );
         for (const documentLiElement of documentLiElementArray) {
             collapseBacklinkDocument(documentLiElement as HTMLElement);
         }
-        // }
     }
 
     function collapseAllBacklinkListItemNode(event: MouseEvent) {
@@ -483,6 +518,7 @@
         if (!rootId) {
             return;
         }
+        resetPanelDataForReload();
         clearBacklinkProtyleList();
 
         previousRootId = rootId;
@@ -516,6 +552,14 @@
             );
 
         await loadBaseDataForCurrentMode();
+        await refreshCurrentDocumentTitle(rootId);
+    }
+
+    function resetPanelDataForReload() {
+        panelDataLoading = true;
+        loadedPanelMode = "";
+        backlinkFilterPanelBaseData = null;
+        backlinkFilterPanelRenderData = null;
     }
 
     // 按当前 panelMode 取基础数据并渲染。
@@ -523,6 +567,7 @@
         if (!rootId) {
             return;
         }
+        let requestSeq = ++dataRequestSeq;
         let requestRootId = rootId;
         let requestMode = panelMode;
         let settingConfig = SettingService.ins.SettingConfig;
@@ -544,7 +589,11 @@
             backlinkPanelDataQueryParams,
         );
         // 竞态：rootId 或范围已切换，丢弃过期响应。
-        if (requestRootId != rootId || requestMode != panelMode) {
+        if (
+            requestSeq != dataRequestSeq ||
+            requestRootId != rootId ||
+            requestMode != panelMode
+        ) {
             return;
         }
         backlinkFilterPanelBaseData = backlinkPanelBaseDataTemp;
@@ -582,10 +631,20 @@
                 queryParams.excludeDocumentIds = new Set<string>();
 
                 queryParams.includeRelatedDefBlockIds.add(selectBlockId);
+                BacklinkFilterPanelAttributeService.ins.applyDefaultExcludeCurrentDocument(
+                    queryParams,
+                    requestRootId,
+                );
             }
         }
 
-        updateRenderData();
+        await updateRenderData();
+        if (requestSeq != dataRequestSeq) {
+            return;
+        }
+        loadedPanelMode = requestMode;
+        panelDataLoading = false;
+        await refreshCurrentDocumentTitle(requestRootId);
     }
 
     // 切换面板范围（引用 / 提及），各模式独立保存筛选条件。
@@ -605,22 +664,33 @@
         if (!nextQueryParams) {
             nextQueryParams =
                 BacklinkFilterPanelAttributeService.ins.getDefaultQueryParams();
+            BacklinkFilterPanelAttributeService.ins.applyDefaultExcludeCurrentDocument(
+                nextQueryParams,
+                rootId,
+            );
         }
         nextQueryParams.panelMode = newMode;
         nextQueryParams.pageNum = 1;
         queryParams = nextQueryParams;
         queryParamsMap.set(newMode, queryParams);
 
+        resetPanelDataForReload();
         clearBacklinkProtyleList();
         await loadBaseDataForCurrentMode();
     }
 
     async function updateRenderData() {
+        if (!backlinkFilterPanelBaseData || !queryParams) {
+            return;
+        }
         let backlinkPanelRenderDataTemp = await getBacklinkPanelRenderData(
             backlinkFilterPanelBaseData,
             queryParams,
         );
-        if (backlinkPanelRenderDataTemp.rootId != rootId) {
+        if (
+            !backlinkPanelRenderDataTemp ||
+            backlinkPanelRenderDataTemp.rootId != rootId
+        ) {
             return;
         }
         backlinkFilterPanelRenderData = backlinkPanelRenderDataTemp;
@@ -703,6 +773,7 @@
             backlinkDocumentArray,
             queryParams.filterPanelBacklinkDocumentSortMethod,
         );
+        pinCurrentDocumentFirst(backlinkDocumentArray, rootId);
 
         backlinkFilterPanelRenderData = backlinkFilterPanelRenderData;
         // console.log("refreshFilterDisplayData ", backlinkPanelRenderData);
@@ -795,10 +866,14 @@
         backlinkDataArray: IBacklinkData[],
     ) {
         if (isArrayEmpty(backlinkDataArray)) {
-            let pElement = document.createElement("p");
-            pElement.style.padding = "5px 15px";
-            pElement.innerText = window.siyuan.languages.emptyContent;
-            backlinkULElement.append(pElement);
+            if (!backlinkULElement) {
+                return;
+            }
+            let emptyElement = document.createElement("li");
+            emptyElement.className = "b3-list--empty";
+            emptyElement.textContent = window.siyuan.languages.emptyContent;
+            backlinkULElement.append(emptyElement);
+            return;
         }
 
         for (const backlinkDoc of backlinkDataArray) {
@@ -1209,6 +1284,26 @@
         return ariaLabel;
     }
 
+    async function refreshCurrentDocumentTitle(docId: string) {
+        if (!docId) {
+            currentDocumentTitle = "";
+            return;
+        }
+        let documentBlock = await getOrFetchDocumentBlock(docId);
+        if (documentBlock) {
+            currentDocumentTitle =
+                documentBlock.content || documentBlock.name || "";
+            return;
+        }
+        currentDocumentTitle = "";
+    }
+
+    function handleOpenSettings(event: MouseEvent) {
+        event.stopPropagation();
+        event.preventDefault();
+        openSettingsDialog();
+    }
+
     function clearCacheAndRefresh() {
         CacheManager.ins.deleteBacklinkPanelAllCache(rootId);
         initBaseData();
@@ -1232,10 +1327,19 @@
 
         queryParams.includeDocumentIds.clear();
         queryParams.excludeDocumentIds.clear();
+        if (!(queryParams.excludeNotebookIds instanceof Set)) {
+            queryParams.excludeNotebookIds = new Set<string>();
+        } else {
+            queryParams.excludeNotebookIds.clear();
+        }
         queryParams.filterPanelBacklinkDocumentSortMethod =
             defaultQueryParams.filterPanelBacklinkDocumentSortMethod;
         queryParams.filterPanelBacklinkDocumentKeywords = "";
-        queryParams = queryParams;
+        BacklinkFilterPanelAttributeService.ins.applyDefaultExcludeCurrentDocument(
+            queryParams,
+            rootId,
+        );
+        markQueryParamsChanged();
         updateRenderData();
     }
 
@@ -1349,6 +1453,7 @@
             includeDocumentIds.add(defBlockId);
         }
 
+        markQueryParamsChanged();
         updateRenderData();
     }
 
@@ -1360,6 +1465,7 @@
             excludeDocumentIds.add(defBlockId);
         }
 
+        markQueryParamsChanged();
         updateRenderData();
     }
 
@@ -1376,6 +1482,218 @@
             return true;
         }
         return false;
+    }
+
+    function pinCurrentDocumentFirst(
+        documents: DefBlock[],
+        currentRootId: string,
+    ) {
+        if (!documents || !currentRootId) {
+            return;
+        }
+        let index = documents.findIndex(
+            (document) => document && document.id == currentRootId,
+        );
+        if (index <= 0) {
+            return;
+        }
+        let [currentDocument] = documents.splice(index, 1);
+        documents.unshift(currentDocument);
+    }
+
+    function getCurrentDocumentFilterState():
+        | "optional"
+        | "selected"
+        | "excluded" {
+        if (!queryParams || !rootId) {
+            return "optional";
+        }
+        if (
+            queryParams.excludeDocumentIds instanceof Set &&
+            queryParams.excludeDocumentIds.has(rootId)
+        ) {
+            return "excluded";
+        }
+        if (
+            queryParams.includeDocumentIds instanceof Set &&
+            queryParams.includeDocumentIds.has(rootId)
+        ) {
+            return "selected";
+        }
+        return "optional";
+    }
+
+    function getDailyNoteFilterState():
+        | "optional"
+        | "selected"
+        | "excluded" {
+        if (!queryParams) {
+            return "optional";
+        }
+        let mode = getDailyNoteFilterMode(
+            getDocumentArrayForDailyNoteFilter(),
+            queryParams.includeDocumentIds,
+            queryParams.excludeDocumentIds,
+        );
+        if (mode === "exclude") {
+            return "excluded";
+        }
+        if (mode === "only") {
+            return "selected";
+        }
+        return "optional";
+    }
+
+    function getExcludedNotebookCount(): number {
+        if (
+            !queryParams ||
+            !(queryParams.excludeNotebookIds instanceof Set)
+        ) {
+            return 0;
+        }
+        return queryParams.excludeNotebookIds.size;
+    }
+
+    function refreshFilterIconState() {
+        currentDocumentFilterState = getCurrentDocumentFilterState();
+        dailyNoteFilterState = getDailyNoteFilterState();
+        excludedNotebookCount = getExcludedNotebookCount();
+    }
+
+    function markQueryParamsChanged() {
+        queryParams = { ...queryParams };
+        if (panelMode) {
+            queryParamsMap.set(panelMode, queryParams);
+        }
+        refreshFilterIconState();
+    }
+
+    $: queryParams,
+        rootId,
+        backlinkFilterPanelBaseData,
+        backlinkFilterPanelRenderData,
+        refreshFilterIconState();
+
+    function getCurrentDocumentFilterAriaLabel(): string {
+        if (
+            queryParams &&
+            queryParams.includeDocumentIds instanceof Set &&
+            queryParams.includeDocumentIds.has(rootId)
+        ) {
+            return EnvConfig.ins.i18n.includeCurrentDocumentBacklink;
+        }
+        return EnvConfig.ins.i18n.excludeCurrentDocumentBacklink;
+    }
+
+    function toggleExcludeCurrentDocument(event: MouseEvent) {
+        event.stopPropagation();
+        event.preventDefault();
+        if (!queryParams || !rootId) {
+            return;
+        }
+        if (!(queryParams.includeDocumentIds instanceof Set)) {
+            queryParams.includeDocumentIds = new Set<string>();
+        }
+        if (!(queryParams.excludeDocumentIds instanceof Set)) {
+            queryParams.excludeDocumentIds = new Set<string>();
+        }
+        if (queryParams.excludeDocumentIds.has(rootId)) {
+            queryParams.excludeDocumentIds.delete(rootId);
+        } else {
+            queryParams.includeDocumentIds.delete(rootId);
+            queryParams.excludeDocumentIds.add(rootId);
+        }
+        markQueryParamsChanged();
+        updateRenderData();
+    }
+
+    function toggleIncludeCurrentDocument(event: MouseEvent) {
+        event.stopPropagation();
+        event.preventDefault();
+        if (!queryParams || !rootId) {
+            return;
+        }
+        if (!(queryParams.includeDocumentIds instanceof Set)) {
+            queryParams.includeDocumentIds = new Set<string>();
+        }
+        if (!(queryParams.excludeDocumentIds instanceof Set)) {
+            queryParams.excludeDocumentIds = new Set<string>();
+        }
+        if (queryParams.includeDocumentIds.has(rootId)) {
+            queryParams.includeDocumentIds.delete(rootId);
+        } else {
+            queryParams.excludeDocumentIds.delete(rootId);
+            queryParams.includeDocumentIds.add(rootId);
+        }
+        markQueryParamsChanged();
+        updateRenderData();
+    }
+
+    function handleNotebookFilterClick(event: MouseEvent) {
+        event.stopPropagation();
+        event.preventDefault();
+        if (!queryParams) {
+            return;
+        }
+        if (!(queryParams.excludeNotebookIds instanceof Set)) {
+            queryParams.excludeNotebookIds = new Set<string>();
+        }
+        openBacklinkNotebookFilterMenu({
+            target: event.currentTarget as HTMLElement,
+            excludeNotebookIds: queryParams.excludeNotebookIds,
+            onChange: (nextExcludeNotebookIds) => {
+                queryParams.excludeNotebookIds = new Set(nextExcludeNotebookIds);
+                excludedNotebookCount = queryParams.excludeNotebookIds.size;
+                markQueryParamsChanged();
+                updateRenderData();
+            },
+        });
+    }
+
+    function getDocumentArrayForDailyNoteFilter(): DefBlock[] {
+        if (
+            backlinkFilterPanelBaseData &&
+            backlinkFilterPanelBaseData.backlinkDocumentArray
+        ) {
+            return backlinkFilterPanelBaseData.backlinkDocumentArray;
+        }
+        if (
+            backlinkFilterPanelRenderData &&
+            backlinkFilterPanelRenderData.backlinkDocumentArray
+        ) {
+            return backlinkFilterPanelRenderData.backlinkDocumentArray;
+        }
+        return [];
+    }
+
+    function handleDailyNoteFilterClick(event: MouseEvent) {
+        event.stopPropagation();
+        event.preventDefault();
+        if (!queryParams) {
+            return;
+        }
+        if (!(queryParams.includeDocumentIds instanceof Set)) {
+            queryParams.includeDocumentIds = new Set<string>();
+        }
+        if (!(queryParams.excludeDocumentIds instanceof Set)) {
+            queryParams.excludeDocumentIds = new Set<string>();
+        }
+        openBacklinkDailyNoteFilterMenu({
+            target: event.currentTarget as HTMLElement,
+            documents: getDocumentArrayForDailyNoteFilter(),
+            includeDocumentIds: queryParams.includeDocumentIds,
+            excludeDocumentIds: queryParams.excludeDocumentIds,
+            onChange: (mode: DailyNoteFilterMode) => {
+                applyDailyNoteFilter(
+                    mode,
+                    getDocumentArrayForDailyNoteFilter(),
+                    queryParams.includeDocumentIds,
+                    queryParams.excludeDocumentIds,
+                );
+                markQueryParamsChanged();
+                updateRenderData();
+            },
+        });
     }
 
     function recoverDocBlockStatus(defBlock: DefBlock): boolean {
@@ -1398,7 +1716,8 @@
             return;
         }
         let savedQueryParams: IPanelRednerFilterQueryParams = JSON.parse(
-            JSON.stringify(queryParams),
+            JSON.stringify(queryParams, setReplacer),
+            setReviver,
         );
         if (!savedQueryParamMap) {
             savedQueryParamMap = new Map();
@@ -1438,8 +1757,18 @@
             savedQueryParam.includeRelatedDefBlockIds;
         queryParams.excludeRelatedDefBlockIds =
             savedQueryParam.excludeRelatedDefBlockIds;
-        queryParams.includeDocumentIds = savedQueryParam.includeDocumentIds;
-        queryParams.excludeDocumentIds = savedQueryParam.excludeDocumentIds;
+        queryParams.includeDocumentIds =
+            savedQueryParam.includeDocumentIds instanceof Set
+                ? savedQueryParam.includeDocumentIds
+                : new Set<string>();
+        queryParams.excludeDocumentIds =
+            savedQueryParam.excludeDocumentIds instanceof Set
+                ? savedQueryParam.excludeDocumentIds
+                : new Set<string>();
+        queryParams.excludeNotebookIds =
+            savedQueryParam.excludeNotebookIds instanceof Set
+                ? savedQueryParam.excludeNotebookIds
+                : new Set<string>();
         queryParams.filterPanelCurDocDefBlockSortMethod =
             savedQueryParam.filterPanelCurDocDefBlockSortMethod;
         queryParams.filterPanelCurDocDefBlockKeywords =
@@ -1457,6 +1786,7 @@
 
         console.log("hadnleSavedPanelCriteriaClick", queryParams);
 
+        markQueryParamsChanged();
         updateRenderData();
     }
     function hadnleSavedPanelCriteriaDeleteClick(name: string) {
@@ -1523,14 +1853,71 @@
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div class="backlink-panel__area">
-    {#if !rootId}
-        <p style="padding: 10px 20px;">
-            没有获取到当前文档信息，请切换文档重试
-        </p>
+    <div class="block__icons backlink-panel__statusbar">
+        <div class="block__logo fn__flex-1">
+            <svg class="block__logoicon"
+                ><use xlink:href="#iconBacklinkPanelFilter"></use></svg
+            >
+            <span class="backlink-panel__doc-name" title={statusBarTitle}
+                >{statusBarTitle}</span
+            >
+            {#if isCacheUsed && rootId}
+                <span
+                    class="counter backlink-panel__cache-badge ariaLabel"
+                    aria-label={EnvConfig.ins.i18n.cacheUsedHintDetail}
+                >
+                    {EnvConfig.ins.i18n.cacheUsedHint}
+                </span>
+            {/if}
+        </div>
+        {#if rootId}
+            <span
+                class="block__icon block__icon--show ariaLabel"
+                aria-label={EnvConfig.ins.i18n.clearCacheAndRefresh}
+                on:click|stopPropagation={clearCacheAndRefresh}
+                on:keydown={handleKeyDownDefault}
+            >
+                <svg><use xlink:href="#iconRefresh"></use></svg>
+            </span>
+            <span class="fn__space"></span>
+        {/if}
+        <span
+            class="block__icon block__icon--show ariaLabel"
+            aria-label={EnvConfig.ins.i18n.openPluginSettings}
+            on:click={handleOpenSettings}
+            on:keydown={handleKeyDownDefault}
+        >
+            <svg><use xlink:href="#iconSettings"></use></svg>
+        </span>
+        {#if showDockMinimize}
+            <span class="fn__space"></span>
+            <span
+                data-type="min"
+                class="block__icon block__icon--show ariaLabel"
+                data-position="north"
+                aria-label={EnvConfig.ins.i18n.minimizePanel}
+                on:keydown={handleKeyDownDefault}
+            >
+                <svg><use xlink:href="#iconMin"></use></svg>
+            </span>
+        {/if}
+    </div>
+    {#if rootId}
+        <div class="fn__flex panel-mode-switch backlink-panel__modebar">
+            {#each PANEL_MODE_ELEMENT() as element}
+                <button
+                    class="b3-button panel-mode-button {panelMode ===
+                    element.value
+                        ? 'panel-mode-button--active'
+                        : ''}"
+                    on:click={() => switchPanelMode(element.value)}
+                >
+                    {element.name}
+                </button>
+            {/each}
+        </div>
     {/if}
-    {#if displayHintPanelBaseDataCacheUsage}
-        <p style="padding: 10px 20px;">此次面板使用了缓存数据</p>
-    {/if}
+    {#if rootId && hasSourceItems}
     <div class="backlink-panel__header">
         <div
             class="panel__title filter-panel__title block__icons"
@@ -1547,6 +1934,54 @@
             <span class="fn__flex-1"></span>
             <span class="fn__space"></span>
             <span
+                class="block__icon block__icon--show filter-icon ariaLabel"
+                class:filter-icon--excluded={currentDocumentFilterState ===
+                    "excluded"}
+                class:filter-icon--selected={currentDocumentFilterState ===
+                    "selected"}
+                data-filter-state={currentDocumentFilterState}
+                aria-label={getCurrentDocumentFilterAriaLabel()}
+                on:click|stopPropagation={toggleExcludeCurrentDocument}
+                on:contextmenu|stopPropagation|preventDefault={toggleIncludeCurrentDocument}
+                on:keydown={handleKeyDownDefault}
+                ><svg class=""
+                    ><use xlink:href="#iconExcludeCurrentDocument"></use></svg
+                ></span
+            >
+            <span class="fn__space"></span>
+            <span
+                class="block__icon block__icon--show filter-icon ariaLabel"
+                class:filter-icon--excluded={dailyNoteFilterState ===
+                    "excluded"}
+                class:filter-icon--selected={dailyNoteFilterState ===
+                    "selected"}
+                data-filter-state={dailyNoteFilterState}
+                aria-label={EnvConfig.ins.i18n.filterDailyNote}
+                on:click|stopPropagation={handleDailyNoteFilterClick}
+                on:keydown={handleKeyDownDefault}
+                ><svg class=""><use xlink:href="#iconCalendar"></use></svg></span
+            >
+            <span class="fn__space"></span>
+            <span
+                class="block__icon block__icon--show filter-icon ariaLabel"
+                class:block__icon--active={excludedNotebookCount > 0}
+                data-filter-state={excludedNotebookCount > 0
+                    ? "active"
+                    : "optional"}
+                aria-label={EnvConfig.ins.i18n.filterNotebook}
+                on:click|stopPropagation={handleNotebookFilterClick}
+                on:keydown={handleKeyDownDefault}
+                ><svg class=""><use xlink:href="#iconFiles"></use></svg>
+                {#if excludedNotebookCount > 0}
+                    <span class="filter-icon__count"
+                        >{excludedNotebookCount > 9
+                            ? "9+"
+                            : excludedNotebookCount}</span
+                    >
+                {/if}
+            </span>
+            <span class="fn__space"></span>
+            <span
                 class="block__icon ariaLabel"
                 aria-label="恢复默认"
                 on:click|stopPropagation={resetFilterQueryParametersToDefault}
@@ -1555,16 +1990,6 @@
                     ><use xlink:href="#iconResetInitialization"></use></svg
                 ></span
             >
-            <span class="fn__space"></span>
-            <span class="fn__space"></span>
-            <span
-                class="block__icon ariaLabel"
-                aria-label="清除缓存并刷新"
-                on:click|stopPropagation={clearCacheAndRefresh}
-                on:keydown={handleKeyDownDefault}
-                ><svg class=""><use xlink:href="#iconRefresh"></use></svg></span
-            >
-            <span class="fn__space"></span>
             <span class="fn__space"></span>
             {#if panelFilterViewExpand}
                 <span class="block__icon ariaLabel" aria-label="折叠">
@@ -1917,27 +2342,6 @@
                 </span>
             {/if}
         </div>
-        {#if panelBacklinkViewExpand}
-            <div
-                class="fn__flex panel-mode-switch"
-                style="padding: 5px 15px 0px;"
-                on:click|stopPropagation
-                on:keydown={handleKeyDownDefault}
-            >
-                {#each PANEL_MODE_ELEMENT() as element}
-                    <button
-                        class="b3-button panel-mode-button {panelMode ===
-                        element.value
-                            ? 'panel-mode-button--active'
-                            : ''}"
-                        on:click|stopPropagation={() =>
-                            switchPanelMode(element.value)}
-                    >
-                        {element.name}
-                    </button>
-                {/each}
-            </div>
-        {/if}
         {#if panelBacklinkViewExpand && queryParams}
             <div class="fn__flex" style="padding: 5px 15px; maragin:0px;">
                 {#if panelMode !== "mention"}
@@ -1991,9 +2395,10 @@
                     />
                 {/if}
 
+                <span class="fn__space"></span>
                 <span
                     class="block__icon b3-tooltips b3-tooltips__sw"
-                    aria-label="展开所有文档"
+                    aria-label="展开所有文档（Ctrl+点击或右键展开列表）"
                     on:click={expandAllBacklinkDocument}
                     on:contextmenu={expandAllBacklinkListItemNode}
                     on:keydown={handleKeyDownDefault}
@@ -2003,7 +2408,7 @@
                 <span class="fn__space"></span>
                 <span
                     class="block__icon b3-tooltips b3-tooltips__sw"
-                    aria-label="折叠所有文档"
+                    aria-label="折叠所有文档（Ctrl+点击或右键折叠列表）"
                     on:click={collapseAllBacklinkDocument}
                     on:contextmenu={collapseAllBacklinkListItemNode}
                     on:keydown={handleKeyDownDefault}
@@ -2080,15 +2485,19 @@
             </div>
         {/if}
     </div>
+    {/if}
+    {#if !rootId}
+        <ul class="b3-list b3-list--background">
+            <li class="b3-list--empty">{EnvConfig.ins.i18n.noDocumentHint}</li>
+        </ul>
+    {/if}
     <div
-        class="backlinkList fn__flex-1 {panelBacklinkViewExpand
+        class="backlinkList fn__flex-1 {!panelDataLoading &&
+        (panelBacklinkViewExpand || isCurrentDocEmpty)
             ? ''
-            : 'fn__none'}"
+            : 'fn__none'} {!rootId ? 'fn__none' : ''}"
     >
         <div class="sy__backlink">
-            {#if displayHintBacklinkBlockCacheUsage}
-                <div>此次查询使用了缓存数据</div>
-            {/if}
             <div class="block__icons" style="display: none;"></div>
             <div class="fn__flex-1">
                 <ul
@@ -2191,6 +2600,9 @@
         height: 30px;
         border-radius: 10px;
     }
+    .filter-panel__title {
+        overflow: visible;
+    }
     .filter-panel__title:hover {
         color: var(--b3-theme-on-background);
         background-color: var(--b3-list-icon-hover);
@@ -2246,12 +2658,55 @@
         opacity: 1;
     }
 
-    .backlink-panel__header {
+    .backlink-panel__statusbar {
         position: sticky;
         top: 0;
+        z-index: 3;
+        min-height: 42px;
+        padding: 0 8px;
+        background-color: var(--b3-theme-surface);
+    }
+
+    .backlink-panel__statusbar .block__logo {
+        min-width: 0;
+        align-items: center;
+    }
+
+    .backlink-panel__doc-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .backlink-panel__cache-badge {
+        flex-shrink: 0;
+        margin-left: 8px;
+        height: 20px;
+        padding: 0 8px;
+        line-height: 20px;
+        border-radius: 10px;
+        background-color: var(--b3-theme-primary);
+        color: var(--b3-theme-on-primary);
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .backlink-panel__modebar {
+        position: sticky;
+        top: 42px;
+        z-index: 3;
+        padding: 4px 8px 8px;
+        background-color: var(--b3-theme-surface);
+    }
+
+    .backlink-panel__header {
+        position: sticky;
+        top: 78px;
         text-align: center;
         padding: 0px 0px;
         z-index: 2;
+        overflow: visible;
         background-color: var(--b3-theme-surface);
         margin-bottom: 10px;
         border-radius: 10px;

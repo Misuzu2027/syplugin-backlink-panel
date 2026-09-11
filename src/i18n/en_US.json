@@ -79,5 +79,21 @@
     "swapDocumentItemClickLogicTips": "When disabled, click to expand search results and double-click to open the document; when enabled, click to open the document and double-click to expand search results.",
     "allNotebooks": "All Notebooks",
     "specifyNotebook": "Specify Notebook",
-    "searchInTheCurrentDocument": "Search in the current document"
+    "searchInTheCurrentDocument": "Search in the current document",
+    "excludeCurrentDocumentBacklink": "Exclude backlinks from the current document",
+    "includeCurrentDocumentBacklink": "Only current document backlinks",
+    "filterNotebook": "Filter notebooks",
+    "filterDailyNote": "Filter daily notes (the menu can exclude all daily notes)",
+    "dailyNoteFilterAll": "All",
+    "dailyNote": "Daily Note",
+    "nonDailyNote": "Non-daily notes",
+    "close": "Close",
+    "panelStatusTitle": "Backlinks",
+    "noDocumentHint": "Could not get the current document. Switch documents and try again.",
+    "cacheUsedHint": "Cached",
+    "cacheUsedHintDetail": "This result came from cache. Refresh to query again.",
+    "clearCacheAndRefresh": "Clear cache and refresh",
+    "openPluginSettings": "Plugin settings",
+    "minimizePanel": "Minimize",
+    "reset": "Reset"
 }

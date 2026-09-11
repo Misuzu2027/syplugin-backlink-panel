@@ -53,6 +53,7 @@ function addBacklinkPanelDock() {
         },
         init() {
             this.element.innerHTML = "";
+            this.element.classList.add("backlink-panel-scroll-host");
             docSearchSvelet = new BacklinkPanelDockSvelte({
                 target: this.element,
                 props: {

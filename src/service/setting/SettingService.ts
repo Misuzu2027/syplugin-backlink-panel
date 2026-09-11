@@ -152,6 +152,7 @@ function getDefaultSettingConfig() {
     defaultConfig.filterPanelRelatedDefBlockSortMethod = "modifiedDesc";
     defaultConfig.filterPanelBacklinkDocumentSortMethod = "createdDesc";
     defaultConfig.defaultSelectedViewBlock = false;
+    defaultConfig.defaultExcludeCurrentDocument = false;
 
 
     // 反链面板

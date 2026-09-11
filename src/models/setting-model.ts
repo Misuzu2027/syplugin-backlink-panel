@@ -32,6 +32,8 @@ export class SettingConfig {
     filterPanelBacklinkDocumentSortMethod: BlockSortMethod;
     // 默认选中查看块
     defaultSelectedViewBlock: boolean;
+    // 默认排除当前文档反链
+    defaultExcludeCurrentDocument: boolean;
 
 
     /* 反链面板 */

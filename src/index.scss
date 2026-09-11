@@ -1,3 +1,10 @@
+/* 预留纵向滚动条槽位，避免内容变高时宽度突然变窄 */
+.backlink-panel-scroll-host,
+.dockPanel:has(.backlink-panel__area),
+.fn__flex-1:has(> .backlink-panel__area) {
+    scrollbar-gutter: stable;
+}
+
 /* 反链面板区域的样式 */
 div.backlink-panel__area div.protyle-wysiwyg.protyle-wysiwyg--attr {
     padding-bottom: 0px;
@@ -76,8 +83,64 @@ div.backlink-panel__area .block__icon--show.block__icon.disabled {
     cursor: not-allowed;
 }
 
+div.backlink-panel__area,
+div.backlink-panel__area .backlink-panel__header,
+div.backlink-panel__area .panel__title,
+div.backlink-panel__area .filter-panel__title.block__icons {
+    overflow: visible;
+}
 
-div.backlink-panel__area .hide-breadcrumb .protyle-breadcrumb__bar.protyle-breadcrumb__bar--nowrap {
+div.backlink-panel__area span.block__icon.filter-icon {
+    position: relative;
+    overflow: visible;
+}
+
+div.backlink-panel__area span.block__icon.filter-icon.filter-icon--excluded,
+div.backlink-panel__area span.block__icon.filter-icon.filter-icon--excluded:hover:not([disabled]),
+div.backlink-panel__area span.block__icon.filter-icon.filter-icon--excluded.block__icon--active {
+    background-color: #000 !important;
+    background-image: none !important;
+    color: #fff !important;
+}
+
+div.backlink-panel__area span.block__icon.filter-icon.filter-icon--selected,
+div.backlink-panel__area span.block__icon.filter-icon.filter-icon--selected:hover:not([disabled]),
+div.backlink-panel__area span.block__icon.filter-icon.filter-icon--selected.block__icon--active {
+    background-color: rgba(26, 188, 156, 1) !important;
+    background-image: none !important;
+    color: #fff !important;
+}
+
+div.backlink-panel__area span.block__icon.filter-icon.filter-icon--excluded svg,
+div.backlink-panel__area span.block__icon.filter-icon.filter-icon--selected svg {
+    color: #fff !important;
+    fill: currentColor !important;
+}
+
+div.backlink-panel__area .filter-icon .filter-icon__count {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 12px;
+    height: 12px;
+    padding: 0 3px;
+    border: 0;
+    border-radius: 6px;
+    background-color: var(--b3-theme-on-surface);
+    color: var(--b3-theme-surface);
+    font-size: 9px;
+    line-height: 12px;
+    font-weight: 600;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+div.backlink-panel__area .hide-breadcrumb .protyle-breadcrumb__bar.protyle-breadcrumb__bar--nowrap:not([data-backlink-id]) {
     display: none;
 }
 

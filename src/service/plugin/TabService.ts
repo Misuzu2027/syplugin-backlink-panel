@@ -57,6 +57,7 @@ export class TabService {
         EnvConfig.ins.plugin.addTab({
             type: tabId,
             init() {
+                this.element.classList.add("backlink-panel-scroll-host");
                 backlinkFilterPanelPageSvelte = new BacklinkFilterPanelPageSvelte({
                     target: this.element,
                     props: {

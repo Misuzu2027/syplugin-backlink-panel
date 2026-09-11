@@ -98,6 +98,7 @@
             {focusBlockId}
             {panelBacklinkViewExpand}
             {currentTab}
+            enableDockMinimize={false}
         />
     </div>
 {:else}
@@ -107,6 +108,7 @@
             {focusBlockId}
             {panelBacklinkViewExpand}
             {currentTab}
+            enableDockMinimize={true}
         />
     </div>
 {/if}

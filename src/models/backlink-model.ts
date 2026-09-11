@@ -318,6 +318,7 @@ export interface IPanelRenderBacklinkQueryParams {
     excludeRelatedDefBlockIds: Set<string>;
     includeDocumentIds: Set<string>;
     excludeDocumentIds: Set<string>;
+    excludeNotebookIds: Set<string>;
 
     // 面板范围：引用（反链） / 提及。默认 link。
     panelMode: PanelMode;

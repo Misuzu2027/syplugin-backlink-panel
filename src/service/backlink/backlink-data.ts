@@ -1,4 +1,4 @@
-import { getBacklink2, getBacklinkDoc, getBackmentionDoc, getBatchBlockIdIndex, sql } from "@/utils/api";
+import { getBacklink2, getBacklinkDoc, getBackmentionDoc, getBatchBlockIdIndex, getBlockByID, sql } from "@/utils/api";
 import {
     generateGetBacklinkListItemBlockArraySql,
     generateGetBlockArraySql,
@@ -53,6 +53,7 @@ export async function getBacklinkPanelRenderData(
     let pageSize = SettingService.ins.SettingConfig.pageSize;
     let rootId = backlinkPanelData.rootId;
 
+    await ensureCurrentDocumentInPanelData(backlinkPanelData);
     cleanInvalidQueryParams(queryParams, backlinkPanelData);
 
     let backlinkBlockNodeArray = backlinkPanelData.backlinkBlockNodeArray;
@@ -235,6 +236,9 @@ function cleanInvalidQueryParams(
             invalidDocumentId.add(defBlockId);
         }
     }
+    if (!queryParams.excludeNotebookIds || !(queryParams.excludeNotebookIds instanceof Set)) {
+        queryParams.excludeNotebookIds = new Set();
+    }
 
     for (const blockId of invalidDefBlockId) {
         queryParams.includeRelatedDefBlockIds.delete(blockId);
@@ -366,6 +370,9 @@ function filterBacklinkDocumentBlocks(
     for (const rootId of includeDocumentIds) {
         if (!validDocBlockMap.has(rootId)) {
             let defBlock = curDocBlockIdMap.get(rootId);
+            if (!defBlock) {
+                continue;
+            }
             let filterStatus = DefinitionBlockStatus.SELECTED;
             defBlock.selectionStatus = filterStatus
             validDocBlockMap.set(rootId, defBlock);
@@ -374,6 +381,9 @@ function filterBacklinkDocumentBlocks(
     //需要把排除的文档ID加进去
     for (const rootId of excludeDocumentIds) {
         let defBlock = curDocBlockIdMap.get(rootId);
+        if (!defBlock) {
+            continue;
+        }
         let filterStatus = DefinitionBlockStatus.EXCLUDED;
         defBlock.selectionStatus = filterStatus
         defBlock.refCount = 0;
@@ -638,6 +648,7 @@ function isBacklinkBlockValid(
     let excludeRelatedDefBlockIds = queryParams.excludeRelatedDefBlockIds;
     let includeDocumentIds = queryParams.includeDocumentIds;
     let excludeDocumentIds = queryParams.excludeDocumentIds;
+    let excludeNotebookIds = queryParams.excludeNotebookIds;
     let backlinkCurDocDefBlockType = queryParams.backlinkCurDocDefBlockType;
 
     let backlinkBlockInfo = backlinkBlockNode.block;
@@ -656,6 +667,11 @@ function isBacklinkBlockValid(
     }
     if (isSetNotEmpty(excludeDocumentIds)
         && excludeDocumentIds.has(backlinkBlockInfo.root_id)
+    ) {
+        return false;
+    }
+    if (isSetNotEmpty(excludeNotebookIds)
+        && excludeNotebookIds.has(backlinkBlockInfo.box)
     ) {
         return false;
     }
@@ -1638,6 +1654,8 @@ async function buildBacklinkPanelData(
         relatedDefBlockArray,
         backlinkDocumentArray: backlinkDocumentArray,
     };
+    cacheDocumentBlocks(backlinkDocumentArray);
+    await ensureCurrentDocumentInPanelData(backlinkPanelData);
 
     return backlinkPanelData;
 
@@ -1725,6 +1743,60 @@ async function getBlockInfoMap(blockIds: string[]) {
         blockMap.set(block.id, block);
     }
     return blockMap;
+}
+
+export async function getOrFetchDocumentBlock(documentId: string): Promise<DefBlock> {
+    if (!documentId) {
+        return null;
+    }
+    let cached = CacheManager.ins.getDocumentBlock(documentId);
+    if (cached) {
+        return cached;
+    }
+    let block = await getBlockByID(documentId);
+    if (!block) {
+        return null;
+    }
+    CacheManager.ins.setDocumentBlock(documentId, block);
+    return block;
+}
+
+function cacheDocumentBlocks(documents: DefBlock[]) {
+    if (isArrayEmpty(documents)) {
+        return;
+    }
+    for (const document of documents) {
+        if (document && document.id) {
+            CacheManager.ins.setDocumentBlock(document.id, document);
+        }
+    }
+}
+
+export async function ensureCurrentDocumentInPanelData(
+    panelData: IBacklinkFilterPanelData,
+): Promise<void> {
+    if (!panelData || !panelData.rootId) {
+        return;
+    }
+    if (!panelData.backlinkDocumentArray) {
+        panelData.backlinkDocumentArray = [];
+    }
+    cacheDocumentBlocks(panelData.backlinkDocumentArray);
+    let exists = panelData.backlinkDocumentArray.some(
+        (document) => document && document.id == panelData.rootId,
+    );
+    if (exists) {
+        return;
+    }
+    let currentDoc = await getOrFetchDocumentBlock(panelData.rootId);
+    if (!currentDoc) {
+        return;
+    }
+    panelData.backlinkDocumentArray.push({
+        ...currentDoc,
+        refCount: currentDoc.refCount ? currentDoc.refCount : 0,
+        selectionStatus: DefinitionBlockStatus.OPTIONAL,
+    });
 }
 
 type BacklinkRefRow = {

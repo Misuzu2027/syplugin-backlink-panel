@@ -30,7 +30,7 @@ export class BacklinkFilterPanelAttributeService {
             // 存在保存的最后查询条件
             if (attrsMap && Object.keys(attrsMap).includes(BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY)) {
                 let json = attrsMap[BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY];
-                let parseObject = JSON.parse(json) as BacklinkPanelFilterCriteria;
+                let parseObject = JSON.parse(json, setReviver) as BacklinkPanelFilterCriteria;
                 if ("queryParams" in parseObject) {
                     documentPanelCriteria = parseObject;
                     parseObject.queryParams.backlinkKeywordStr = "";
@@ -48,7 +48,12 @@ export class BacklinkFilterPanelAttributeService {
             queryParams.excludeRelatedDefBlockIds = new Set<string>();
             queryParams.includeDocumentIds = new Set<string>();
             queryParams.excludeDocumentIds = new Set<string>();
+            this.applyDefaultExcludeCurrentDocument(queryParams, rootId);
             CacheManager.ins.setBacklinkFilterPanelLastCriteria(rootId, documentPanelCriteria);
+        }
+
+        if (!(queryParams.excludeNotebookIds instanceof Set)) {
+            queryParams.excludeNotebookIds = new Set<string>();
         }
 
         documentPanelCriteria.queryParams = queryParams;
@@ -66,9 +71,9 @@ export class BacklinkFilterPanelAttributeService {
         let lastCriteria = await this.getPanelCriteria(rootId);
         let lastCriteriaJson = "";
         if (lastCriteria) {
-            lastCriteriaJson = JSON.stringify(lastCriteria);
+            lastCriteriaJson = JSON.stringify(lastCriteria, setReplacer);
         }
-        let criteriaJson = JSON.stringify(criteria);
+        let criteriaJson = JSON.stringify(criteria, setReplacer);
         if (criteriaJson == lastCriteriaJson) {
             return;
         }
@@ -76,10 +81,10 @@ export class BacklinkFilterPanelAttributeService {
         CacheManager.ins.setBacklinkFilterPanelLastCriteria(rootId, criteria);
 
         // 持久缓存删除 关键字。
-        let criteriaCloned : BacklinkPanelFilterCriteria= JSON.parse(criteriaJson);
+        let criteriaCloned : BacklinkPanelFilterCriteria= JSON.parse(criteriaJson, setReviver);
         criteriaCloned.queryParams.backlinkKeywordStr = "";
         criteriaCloned.queryParams.mentionKeywordStr = "";
-        let criteriaClonedJson = JSON.stringify(criteriaCloned);
+        let criteriaClonedJson = JSON.stringify(criteriaCloned, setReplacer);
         let attrs = {};
         attrs[BACKLINK_FILTER_PANEL_LAST_CRITERIA_ATTRIBUTE_KEY] = criteriaClonedJson;
         setBlockAttrs(rootId, attrs);
@@ -185,6 +190,7 @@ export class BacklinkFilterPanelAttributeService {
             excludeRelatedDefBlockIds: new Set<string>(),
             includeDocumentIds: new Set<string>(),
             excludeDocumentIds: new Set<string>(),
+            excludeNotebookIds: new Set<string>(),
             filterPanelCurDocDefBlockSortMethod: filterPanelCurDocDefBlockSortMethod,
             filterPanelCurDocDefBlockKeywords: "",
             filterPanelRelatedDefBlockType: "all",
@@ -195,6 +201,26 @@ export class BacklinkFilterPanelAttributeService {
         } as IPanelRednerFilterQueryParams;
 
         return queryParams;
+    }
+
+    public applyDefaultExcludeCurrentDocument(
+        queryParams: IPanelRednerFilterQueryParams,
+        rootId: string,
+    ) {
+        if (!queryParams || !rootId) {
+            return;
+        }
+        if (!SettingService.ins.SettingConfig.defaultExcludeCurrentDocument) {
+            return;
+        }
+        if (!(queryParams.includeDocumentIds instanceof Set)) {
+            queryParams.includeDocumentIds = new Set<string>();
+        }
+        if (!(queryParams.excludeDocumentIds instanceof Set)) {
+            queryParams.excludeDocumentIds = new Set<string>();
+        }
+        queryParams.includeDocumentIds.delete(rootId);
+        queryParams.excludeDocumentIds.add(rootId);
     }
 
 

@@ -23,6 +23,7 @@ export function getSettingTabArray(): TabProperty[] {
             key: "filter-panel-setting", name: "筛选面板", iconKey: "iconFilter", props: [
                 new ItemProperty({ key: "filterPanelViewExpand", type: "switch", name: "默认展开筛选面板", description: "", tips: "" }),
                 new ItemProperty({ key: "defaultSelectedViewBlock", type: "switch", name: "默认选中查看块", description: "", tips: "" }),
+                new ItemProperty({ key: "defaultExcludeCurrentDocument", type: "switch", name: "默认排除当前文档反链", description: "", tips: "" }),
 
                 new ItemProperty({ key: "queryParentDefBlock", type: "switch", name: "查询父级关联定义块", description: "", tips: "" }),
                 new ItemProperty({ key: "querrChildDefBlockForListItem", type: "switch", name: "查询列表项下关联定义块", description: "如果反链块的父级是列表项块，则查询该列表项块底下的所有定义块", tips: "" }),

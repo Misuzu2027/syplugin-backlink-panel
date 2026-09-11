@@ -18,6 +18,7 @@ export class CacheManager {
     private mentionDocApiDataCache: CacheUtil = new CacheUtil();
     private backlinkFilterPanelLastCriteriaCache: CacheUtil = new CacheUtil();
     private backlinkPanelSavedCriteriaCache: CacheUtil = new CacheUtil();
+    private documentBlockCache: CacheUtil = new CacheUtil();
 
     // 毫秒
     private dayTtl: number = 24 * 60 * 60 * 1000;
@@ -78,6 +79,26 @@ export class CacheManager {
         this.deleteBacklinkDocApiData(rootId);
         this.deleteMentionPanelBaseData(rootId);
         this.deleteMentionDocApiData(rootId);
+        this.deleteDocumentBlock(rootId);
+    }
+
+    public setDocumentBlock(documentId: string, value: DefBlock) {
+        if (!documentId || !value) {
+            return;
+        }
+        this.documentBlockCache.set(documentId, value, this.dayTtl);
+    }
+    public getDocumentBlock(documentId: string): DefBlock {
+        if (!documentId) {
+            return null;
+        }
+        return this.documentBlockCache.get(documentId);
+    }
+    public deleteDocumentBlock(documentId: string) {
+        if (!documentId) {
+            return;
+        }
+        this.documentBlockCache.delete(documentId);
     }
 
 
