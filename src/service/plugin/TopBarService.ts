@@ -1,7 +1,6 @@
 import { EnvConfig } from "@/config/EnvConfig";
 import Instance from "@/utils/Instance";
 import { CUSTOM_ICON_MAP } from "@/models/icon-constant";
-import { getActiveTab } from "@/utils/html-util";
 import { TabService } from "@/service/plugin/TabService";
 
 
@@ -21,15 +20,7 @@ export class TopBarService {
                 title: "反链面板页签",
                 position: "right",
                 callback: () => {
-                    let currentDocument: HTMLDivElement = getActiveTab();
-                    if (!currentDocument) {
-                        return;
-                    }
-
-                    const docTitleElement = currentDocument.querySelector(".protyle-title");
-                    let docTitle = currentDocument.querySelector("div.protyle-title__input").textContent;
-                    let docId = docTitleElement.getAttribute("data-node-id");
-                    TabService.ins.openBacklinkTab(docTitle, docId, null);
+                    TabService.ins.openCurrentDocumentBacklinkTab();
                 }
             });
 

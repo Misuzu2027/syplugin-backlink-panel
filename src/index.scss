@@ -73,7 +73,8 @@ div.backlink-panel__area .backlink-panel__av-item.protyle-db-row__body {
 }
 
 div.backlink-panel__area .backlink-panel__av-row--hit {
-    background-color: var(--b3-protyle-inline-mark-background);
+    background-color: color-mix(in srgb, var(--b3-protyle-inline-mark-background) 12%, transparent);
+    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--b3-protyle-inline-mark-background) 48%, transparent);
     border-radius: var(--b3-border-radius);
 }
 
@@ -146,8 +147,7 @@ div.backlink-panel__area .hide-breadcrumb .protyle-breadcrumb__bar.protyle-bread
 
 
 ::highlight(search-result-mark) {
-    background-color: var(--b3-protyle-inline-mark-background);
-    color: var(--b3-protyle-inline-mark-color);
+    background-color: color-mix(in srgb, var(--b3-protyle-inline-mark-background) 14%, transparent);
 }
 
 ::highlight(search-result-focus) {
