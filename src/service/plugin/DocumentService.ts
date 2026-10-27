@@ -420,22 +420,58 @@ function intervalSetNodePaddingBottom() {
         let paddingBottomSize = "48px";
         for (const key of documentProtyleElementMap.keys()) {
             let protyleElement = documentProtyleElementMap.get(key);
+            if (!protyleElement) {
+                continue;
+            }
 
             if (parseFloat(protyleElement.style.paddingBottom) > 88) {
                 protyleElement.style.paddingBottom = paddingBottomSize;
             }
             let panelElement = protyleElement.parentElement.querySelector(".backlink-panel-document-bottom__area") as HTMLElement;
-            if (panelElement && protyleElement.style.paddingLeft != panelElement.style.paddingLeft) {
-                let paddingWidthPx = paddingWidthSize + "px";
-                if (paddingWidthSize == undefined || paddingWidthSize == null) {
-                    // console.log("intervalSetNodePaddingBottom")
-                    paddingWidthPx = protyleElement.style.paddingLeft;
-                }
-                panelElement.style.paddingLeft = paddingWidthPx;
-                panelElement.style.paddingRight = paddingWidthPx;
+            if (!panelElement) {
+                continue;
             }
+            syncDocumentBottomPanelHorizontalPadding(panelElement, protyleElement, paddingWidthSize);
         }
     }, 50);
+}
+
+function syncDocumentBottomPanelHorizontalPadding(panelElement: HTMLElement, protyleElement: HTMLElement, paddingWidthSize: number) {
+    let paddingWidthPx = getDocumentBottomPaddingWidthPx(paddingWidthSize);
+    let contentElement = protyleElement.parentElement;
+    let responsive = contentElement && contentElement.getAttribute("data-padding-mode") === "responsive";
+
+    if (paddingWidthPx == null && responsive) {
+        if (panelElement.style.paddingLeft || panelElement.style.paddingRight) {
+            panelElement.style.paddingLeft = "";
+            panelElement.style.paddingRight = "";
+        }
+        return;
+    }
+
+    let paddingLeft = paddingWidthPx;
+    let paddingRight = paddingWidthPx;
+    if (paddingWidthPx == null) {
+        paddingLeft = protyleElement.style.paddingLeft;
+        paddingRight = protyleElement.style.paddingRight;
+    }
+    if (panelElement.style.paddingLeft !== paddingLeft) {
+        panelElement.style.paddingLeft = paddingLeft;
+    }
+    if (panelElement.style.paddingRight !== paddingRight) {
+        panelElement.style.paddingRight = paddingRight;
+    }
+}
+
+function getDocumentBottomPaddingWidthPx(paddingWidthSize: number): string | null {
+    if (paddingWidthSize == undefined || paddingWidthSize == null || (paddingWidthSize as unknown) === "") {
+        return null;
+    }
+    let width = Number(paddingWidthSize);
+    if (!Number.isFinite(width)) {
+        return null;
+    }
+    return width + "px";
 }
 
 

@@ -155,13 +155,52 @@ div.backlink-panel__area .hide-breadcrumb .protyle-breadcrumb__bar.protyle-bread
     color: var(--b3-protyle-inline-mark-color);
 }
 
-/* 文档底部样式 */
+/* 文档底部样式。水平边距与思源正文、官方底部反链同一套容器查询。 */
 div.backlink-panel-document-bottom__area {
-    padding: 8px 48px;
-
+    padding-top: 8px;
+    padding-bottom: 8px;
+    padding-left: 48px;
+    padding-right: 48px;
 }
 
+.protyle-content[data-padding-mode="responsive"] > .backlink-panel-document-bottom__area:not(.document-panel-plugin-mobile) {
+    --b3-protyle-padding-left: 24px;
+    --b3-protyle-padding-right: 16px;
+    padding-left: var(--b3-protyle-padding-left);
+    padding-right: max(var(--b3-protyle-padding-right), var(--b3-protyle-page-scroll-gutter, 0px));
+}
 
+@container protyle-padding (width > 760px) {
+    .protyle-content[data-padding-mode="responsive"] > .backlink-panel-document-bottom__area:not(.document-panel-plugin-mobile) {
+        --b3-protyle-padding-left: 96px;
+        --b3-protyle-padding-right: 96px;
+    }
+}
+
+@container protyle-padding (width > 952px) {
+    .protyle-content[data-padding-mode="responsive"]:not([data-fullwidth]) > .backlink-panel-document-bottom__area:not(.document-panel-plugin-mobile) {
+        --b3-protyle-padding-left: calc((100cqi - 760px) / 2);
+        --b3-protyle-padding-right: calc((100cqi - 760px) / 2);
+    }
+}
+
+@container protyle-padding (width > 2280px) {
+    .protyle-content[data-padding-mode="responsive"]:not([data-fullwidth]) > .backlink-panel-document-bottom__area:not(.document-panel-plugin-mobile) {
+        --b3-protyle-padding-left: calc(100cqi * .382 / 1.382);
+        --b3-protyle-padding-right: calc(100cqi * .382 / 1.382);
+    }
+}
+
+/* 未开自适应宽度时，与正文共用左右边距。编辑器宽度插件会把 --leftWidth / --rightWidth 写到根上。 */
+.protyle-content[data-padding-mode="responsive"]:not([data-fullwidth]) > .backlink-panel-document-bottom__area:not(.document-panel-plugin-mobile) {
+    padding-left: var(--leftWidth, var(--b3-protyle-padding-left));
+    padding-right: var(--rightWidth, max(var(--b3-protyle-padding-right), var(--b3-protyle-page-scroll-gutter, 0px)));
+}
+
+body.body--window .protyle-content[data-padding-mode="responsive"]:not([data-fullwidth]) > .backlink-panel-document-bottom__area:not(.document-panel-plugin-mobile) {
+    padding-left: var(--lrwidth, var(--leftWidth, var(--b3-protyle-padding-left)));
+    padding-right: var(--lrwidth, var(--rightWidth, max(var(--b3-protyle-padding-right), var(--b3-protyle-page-scroll-gutter, 0px))));
+}
 
 /* 手机端样式 */
 div.document-panel-plugin-mobile.backlink-panel-document-bottom__area {
