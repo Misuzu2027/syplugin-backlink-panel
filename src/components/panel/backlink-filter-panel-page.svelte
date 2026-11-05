@@ -135,11 +135,10 @@
     $: statusBarTitle =
         currentDocumentTitle || EnvConfig.ins.i18n.panelStatusTitle;
     $: showDockMinimize = enableDockMinimize && !EnvConfig.ins.isMobile;
-    $: hasSourceItems =
+    $: isPanelDataReady =
         !panelDataLoading &&
         loadedPanelMode == panelMode &&
-        backlinkFilterPanelBaseData?.rootId == rootId &&
-        isArrayNotEmpty(backlinkFilterPanelBaseData?.backlinkBlockNodeArray);
+        backlinkFilterPanelBaseData?.rootId == rootId;
     $: isCurrentDocEmpty =
         !panelDataLoading &&
         Boolean(rootId) &&
@@ -1917,7 +1916,7 @@
             {/each}
         </div>
     {/if}
-    {#if rootId && hasSourceItems}
+    {#if rootId && isPanelDataReady}
     <div class="backlink-panel__header">
         <div
             class="panel__title filter-panel__title block__icons"
