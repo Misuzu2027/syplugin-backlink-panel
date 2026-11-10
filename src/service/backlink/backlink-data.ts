@@ -784,9 +784,9 @@ export async function getBacklinkPanelData(
     let rootId = queryParams.rootId;
     let focusBlockId = queryParams.focusBlockId;
     focusBlockId = null;
-    let queryCurDocDefBlockRange = queryParams.queryCurDocDefBlockRange;
+    let queryCurDocDefBlockRange = queryParams.queryCurDocDefBlockRange || "curDocDefBlock";
 
-    let cacheResult = CacheManager.ins.getBacklinkPanelBaseData(rootId);
+    let cacheResult = CacheManager.ins.getBacklinkPanelBaseData(rootId, queryCurDocDefBlockRange);
 
     if (cacheResult) {
         cacheResult.userCache = true;
@@ -878,7 +878,7 @@ export async function getBacklinkPanelData(
     if (cacheAfterResponseMs >= 0
         && cacheExpirationTime >= 0
         && executionTime > cacheAfterResponseMs) {
-        CacheManager.ins.setBacklinkPanelBaseData(rootId, backlinkPanelData, cacheExpirationTime);
+        CacheManager.ins.setBacklinkPanelBaseData(rootId, queryCurDocDefBlockRange, backlinkPanelData, cacheExpirationTime);
     }
     // console.log(" blockTreeNodeArray : ", backlinkPanelData)
 

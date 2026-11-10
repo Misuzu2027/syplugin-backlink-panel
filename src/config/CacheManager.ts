@@ -25,14 +25,23 @@ export class CacheManager {
 
 
 
-    public setBacklinkPanelBaseData(rootId: string, value: IBacklinkFilterPanelData, ttlSeconds: number) {
-        this.backlinkPanelBaseDataCache.set(rootId, value, ttlSeconds * 1000);
+    public setBacklinkPanelBaseData(rootId: string, range: string, value: IBacklinkFilterPanelData, ttlSeconds: number) {
+        this.backlinkPanelBaseDataCache.set(this.backlinkPanelBaseDataKey(rootId, range), value, ttlSeconds * 1000);
     }
-    public getBacklinkPanelBaseData(rootId: string): IBacklinkFilterPanelData {
-        return this.backlinkPanelBaseDataCache.get(rootId);
+    public getBacklinkPanelBaseData(rootId: string, range: string): IBacklinkFilterPanelData {
+        return this.backlinkPanelBaseDataCache.get(this.backlinkPanelBaseDataKey(rootId, range));
     }
     public deleteBacklinkPanelBaseData(rootId: string) {
+        if (!rootId) {
+            return;
+        }
+        // 旧键只有 rootId。新键是 rootId + 定义块范围，按文档前缀一起清掉。
         this.backlinkPanelBaseDataCache.delete(rootId);
+        this.backlinkPanelBaseDataCache.clearByPrefix(`${rootId}:`);
+    }
+
+    private backlinkPanelBaseDataKey(rootId: string, range: string) {
+        return generateKey(rootId, range || "curDocDefBlock");
     }
 
     public setBacklinkDocApiData(defId: string, rootId: string, keyword: string, value: any, ttlSeconds: number) {

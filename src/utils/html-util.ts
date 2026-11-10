@@ -104,6 +104,27 @@ export function clearCssHighlights() {
     CSS.highlights.delete("search-result-focus");
 }
 
+export function clearCssHighlightsIn(element: HTMLElement) {
+    if (!element || !CSS.highlights) {
+        return;
+    }
+    const names = ["search-result-mark", "search-result-focus"];
+    for (const name of names) {
+        const highlight = CSS.highlights.get(name);
+        if (!highlight) {
+            continue;
+        }
+        const stale: AbstractRange[] = [];
+        highlight.forEach((range) => {
+            const node = range.startContainer;
+            if (node && element.contains(node)) {
+                stale.push(range);
+            }
+        });
+        stale.forEach((range) => highlight.delete(range));
+    }
+}
+
 
 
 export function highlightContent(content: string, keywords: string[]): string {

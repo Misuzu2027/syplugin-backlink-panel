@@ -32,6 +32,7 @@
         isSetNotEmpty,
     } from "@/utils/array-util";
     import {
+        clearCssHighlightsIn,
         clearProtyleGutters,
         getElementsBeforeDepth,
         highlightElementTextByCss,
@@ -107,7 +108,7 @@
     let clickCount: number = 0;
     let clickTimeoutId: NodeJS.Timeout;
     let inputChangeTimeoutId: NodeJS.Timeout;
-    let queryCurDocDefBlockRange: string;
+    let queryCurDocDefBlockRange = "curDocDefBlock";
     // 用来保存当前页面反链渲染区的展开折叠状态
     let backlinkDocumentFoldMap: Map<string, boolean> = new Map();
     let backlinkProtyleItemFoldMap: Map<string, Set<string>> = new Map();
@@ -130,17 +131,21 @@
     let excludedNotebookCount = 0;
     let currentDocumentTitle = "";
     let loadedPanelMode: PanelMode | "" = "";
-    let panelDataLoading = false;
     let dataRequestSeq = 0;
+    let viewRequestSeq = 0;
+    type BacklinkPreviewEntry = {
+        foldKey: string;
+        documentLiElement: HTMLElement;
+        editorElement: HTMLElement;
+        editor: Protyle;
+    };
+    let backlinkPreviewEntryMap: Map<string, BacklinkPreviewEntry> = new Map();
+    let backlinkPreviewKeywordSignature = "";
+    let backlinkListHeightFrame = 0;
     $: statusBarTitle =
         currentDocumentTitle || EnvConfig.ins.i18n.panelStatusTitle;
     $: showDockMinimize = enableDockMinimize && !EnvConfig.ins.isMobile;
-    $: isPanelDataReady =
-        !panelDataLoading &&
-        loadedPanelMode == panelMode &&
-        backlinkFilterPanelBaseData?.rootId == rootId;
     $: isCurrentDocEmpty =
-        !panelDataLoading &&
         Boolean(rootId) &&
         loadedPanelMode == panelMode &&
         backlinkFilterPanelBaseData?.rootId == rootId &&
@@ -517,8 +522,11 @@
         if (!rootId) {
             return;
         }
-        resetPanelDataForReload();
-        clearBacklinkProtyleList();
+        const switchingDocument =
+            Boolean(previousRootId) && previousRootId !== rootId;
+        if (switchingDocument) {
+            clearDisplayedPanelContent();
+        }
 
         previousRootId = rootId;
         previousFocusBlockId = focusBlockId;
@@ -554,11 +562,22 @@
         await refreshCurrentDocumentTitle(rootId);
     }
 
-    function resetPanelDataForReload() {
-        panelDataLoading = true;
+    function clearDisplayedPanelContent() {
+        clearBacklinkProtyleList();
         loadedPanelMode = "";
         backlinkFilterPanelBaseData = null;
         backlinkFilterPanelRenderData = null;
+    }
+
+    async function reloadCurDocDefBlockRange() {
+        if (!rootId || !queryParams) {
+            return;
+        }
+        if (!queryCurDocDefBlockRange) {
+            queryCurDocDefBlockRange = "curDocDefBlock";
+        }
+        queryParams.pageNum = 1;
+        await loadBaseDataForCurrentMode();
     }
 
     // 按当前 panelMode 取基础数据并渲染。
@@ -567,8 +586,12 @@
             return;
         }
         let requestSeq = ++dataRequestSeq;
+        ++viewRequestSeq;
         let requestRootId = rootId;
         let requestMode = panelMode;
+        if (!queryCurDocDefBlockRange) {
+            queryCurDocDefBlockRange = "curDocDefBlock";
+        }
         let settingConfig = SettingService.ins.SettingConfig;
         let backlinkPanelDataQueryParams: IBacklinkFilterPanelDataQueryParams =
             {
@@ -642,7 +665,6 @@
             return;
         }
         loadedPanelMode = requestMode;
-        panelDataLoading = false;
         await refreshCurrentDocumentTitle(requestRootId);
     }
 
@@ -673,8 +695,6 @@
         queryParams = nextQueryParams;
         queryParamsMap.set(newMode, queryParams);
 
-        resetPanelDataForReload();
-        clearBacklinkProtyleList();
         await loadBaseDataForCurrentMode();
     }
 
@@ -682,22 +702,28 @@
         if (!backlinkFilterPanelBaseData || !queryParams) {
             return;
         }
+        const viewSeq = ++viewRequestSeq;
+        const requestRootId = rootId;
+        const baseData = backlinkFilterPanelBaseData;
         let backlinkPanelRenderDataTemp = await getBacklinkPanelRenderData(
-            backlinkFilterPanelBaseData,
+            baseData,
             queryParams,
         );
         if (
+            viewSeq != viewRequestSeq ||
+            requestRootId != rootId ||
             !backlinkPanelRenderDataTemp ||
             backlinkPanelRenderDataTemp.rootId != rootId
         ) {
             return;
         }
-        backlinkFilterPanelRenderData = backlinkPanelRenderDataTemp;
+        await applyFilterDisplaySort(backlinkPanelRenderDataTemp);
+        if (viewSeq != viewRequestSeq || requestRootId != rootId) {
+            return;
+        }
 
         queryParams = queryParams;
-
-        refreshFilterDisplayData();
-
+        backlinkFilterPanelRenderData = backlinkPanelRenderDataTemp;
         refreshBacklinkPreview();
     }
 
@@ -735,15 +761,21 @@
     }
 
     async function refreshFilterDisplayData() {
-        let curDocDefBlockArray =
-            backlinkFilterPanelRenderData.curDocDefBlockArray;
-        let relatedDefBlockArray =
-            backlinkFilterPanelRenderData.relatedDefBlockArray;
-        let backlinkDocumentArray =
-            backlinkFilterPanelRenderData.backlinkDocumentArray;
+        await applyFilterDisplaySort(backlinkFilterPanelRenderData);
+        backlinkFilterPanelRenderData = backlinkFilterPanelRenderData;
+    }
+
+    async function applyFilterDisplaySort(
+        renderData: IBacklinkPanelRenderData,
+    ) {
+        if (!renderData || !queryParams) {
+            return;
+        }
+        let curDocDefBlockArray = renderData.curDocDefBlockArray;
+        let relatedDefBlockArray = renderData.relatedDefBlockArray;
+        let backlinkDocumentArray = renderData.backlinkDocumentArray;
         let realatedDefBLockType = queryParams.filterPanelRelatedDefBlockType;
 
-        // 先匹配关键字
         defBlockArrayTypeAndKeywordFilter(
             curDocDefBlockArray,
             null,
@@ -759,7 +791,6 @@
             null,
             queryParams.filterPanelBacklinkDocumentKeywords,
         );
-        // 排序
         await defBlockArraySort(
             curDocDefBlockArray,
             queryParams.filterPanelCurDocDefBlockSortMethod,
@@ -773,39 +804,343 @@
             queryParams.filterPanelBacklinkDocumentSortMethod,
         );
         pinCurrentDocumentFirst(backlinkDocumentArray, rootId);
-
-        backlinkFilterPanelRenderData = backlinkFilterPanelRenderData;
-        // console.log("refreshFilterDisplayData ", backlinkPanelRenderData);
     }
 
     function refreshBacklinkPreview() {
-        clearBacklinkProtyleList();
-
-        batchCreateOfficialBacklinkProtyle(
-            backlinkFilterPanelRenderData.backlinkDocumentArray,
-            backlinkFilterPanelRenderData.backlinkDataArray,
-        );
-
+        if (!backlinkFilterPanelRenderData) {
+            return;
+        }
         if (backlinkFilterPanelRenderData.usedCache) {
             displayHintBacklinkBlockCacheUsage = true;
         } else {
             displayHintBacklinkBlockCacheUsage = false;
         }
+        if (!backlinkULElement) {
+            return;
+        }
+
+        const backlinkDocumentArray =
+            backlinkFilterPanelRenderData.backlinkDocumentArray || [];
+        const backlinkDataArray =
+            backlinkFilterPanelRenderData.backlinkDataArray || [];
+        const keywordSignature = previewKeywordSignature();
+        const keywordChanged =
+            keywordSignature !== backlinkPreviewKeywordSignature;
+
+        if (isArrayEmpty(backlinkDataArray)) {
+            if (hasStableEmptyBacklinkRow()) {
+                backlinkPreviewKeywordSignature = keywordSignature;
+                return;
+            }
+            holdBacklinkListHeight();
+            destroyAllBacklinkPreviewEntries();
+            showBacklinkEmptyRow();
+            backlinkPreviewKeywordSignature = keywordSignature;
+            releaseBacklinkListHeight();
+            return;
+        }
+
+        const desired = buildDesiredBacklinkPreviews(backlinkDataArray);
+        const desiredKeys = desired.map((item) => item.foldKey);
+        const currentKeys = readBacklinkPreviewFoldKeys();
+        const sameOrder =
+            backlinkPreviewEntryMap.size === desiredKeys.length &&
+            currentKeys.length === desiredKeys.length &&
+            currentKeys.every((key, index) => key === desiredKeys[index]);
+        const reused: BacklinkPreviewEntry[] = [];
+
+        if (!sameOrder) {
+            holdBacklinkListHeight();
+            backlinkULElement
+                .querySelector(":scope > li.b3-list--empty")
+                ?.remove();
+            const desiredKeySet = new Set(desiredKeys);
+            for (const [key, entry] of backlinkPreviewEntryMap) {
+                if (!desiredKeySet.has(key)) {
+                    destroyBacklinkPreviewEntry(entry);
+                    backlinkPreviewEntryMap.delete(key);
+                }
+            }
+            for (const item of desired) {
+                let entry = backlinkPreviewEntryMap.get(item.foldKey);
+                if (!entry) {
+                    entry = createBacklinkPreviewEntry(
+                        item.foldKey,
+                        item.backlinkDoc,
+                        backlinkDocumentArray,
+                    );
+                    backlinkPreviewEntryMap.set(item.foldKey, entry);
+                } else {
+                    backlinkULElement.append(entry.documentLiElement);
+                    backlinkULElement.append(entry.editorElement);
+                    reused.push(entry);
+                }
+            }
+            releaseBacklinkListHeight();
+        } else {
+            for (const item of desired) {
+                const entry = backlinkPreviewEntryMap.get(item.foldKey);
+                if (entry) {
+                    reused.push(entry);
+                }
+            }
+        }
+
+        for (const entry of reused) {
+            const item = desired.find(
+                (candidate) => candidate.foldKey === entry.foldKey,
+            );
+            if (!item) {
+                continue;
+            }
+            hideOtherListItemElement(item.backlinkDoc, entry.editor);
+            if (keywordChanged) {
+                highlightReusedBacklinkPreview(
+                    entry.documentLiElement,
+                    entry.editor,
+                );
+            }
+        }
+        backlinkPreviewKeywordSignature = keywordSignature;
+    }
+
+    function buildDesiredBacklinkPreviews(backlinkDataArray: IBacklinkData[]) {
+        const seen = new Map<string, number>();
+        const desired: { foldKey: string; backlinkDoc: IBacklinkData }[] = [];
+        for (const backlinkDoc of backlinkDataArray) {
+            let foldKey = getBacklinkPreviewFoldKey(backlinkDoc);
+            const count = seen.get(foldKey) || 0;
+            seen.set(foldKey, count + 1);
+            if (count > 0) {
+                foldKey = `${foldKey}#${count}`;
+            }
+            desired.push({ foldKey, backlinkDoc });
+        }
+        return desired;
+    }
+
+    function getBacklinkPreviewFoldKey(backlinkDoc: IBacklinkData) {
+        const avItemPreview = backlinkDoc.avItemPreview;
+        if (avItemPreview) {
+            return `av:${avItemPreview.avID}:${avItemPreview.itemID}`;
+        }
+        return backlinkDoc.backlinkBlock.id;
+    }
+
+    function readBacklinkPreviewFoldKeys() {
+        const keys: string[] = [];
+        if (!backlinkULElement) {
+            return keys;
+        }
+        for (const child of backlinkULElement.children) {
+            if (!(child instanceof HTMLElement)) {
+                continue;
+            }
+            if (!child.classList.contains("list-item__document-name")) {
+                continue;
+            }
+            keys.push(
+                child.getAttribute("data-preview-key") ||
+                    child.getAttribute("data-fold-key") ||
+                    child.getAttribute("data-backlink-block-id") ||
+                    "",
+            );
+        }
+        return keys;
+    }
+
+    function hasStableEmptyBacklinkRow() {
+        if (!backlinkULElement || backlinkPreviewEntryMap.size > 0) {
+            return false;
+        }
+        return (
+            backlinkULElement.children.length === 1 &&
+            backlinkULElement.firstElementChild?.classList.contains(
+                "b3-list--empty",
+            )
+        );
+    }
+
+    function showBacklinkEmptyRow() {
+        if (!backlinkULElement) {
+            return;
+        }
+        if (hasStableEmptyBacklinkRow()) {
+            return;
+        }
+        backlinkULElement.innerHTML = "";
+        const emptyElement = document.createElement("li");
+        emptyElement.className = "b3-list--empty";
+        emptyElement.textContent = window.siyuan.languages.emptyContent;
+        backlinkULElement.append(emptyElement);
+    }
+
+    function holdBacklinkListHeight() {
+        if (!backlinkULElement) {
+            return;
+        }
+        const height = backlinkULElement.offsetHeight;
+        if (height > 0) {
+            backlinkULElement.style.minHeight = `${height}px`;
+        }
+    }
+
+    function releaseBacklinkListHeight() {
+        if (backlinkListHeightFrame) {
+            cancelAnimationFrame(backlinkListHeightFrame);
+        }
+        backlinkListHeightFrame = requestAnimationFrame(() => {
+            backlinkListHeightFrame = requestAnimationFrame(() => {
+                backlinkListHeightFrame = 0;
+                if (backlinkULElement) {
+                    backlinkULElement.style.minHeight = "";
+                }
+            });
+        });
+    }
+
+    function createBacklinkPreviewEntry(
+        foldKey: string,
+        backlinkDoc: IBacklinkData,
+        backlinkDocumentArray: DefBlock[],
+    ): BacklinkPreviewEntry {
+        const backlinkNode = backlinkDoc.backlinkBlock;
+        const backlinkBlockId = backlinkNode.id;
+        const notebookId = backlinkNode.box;
+        let documentName = "";
+        for (const document of backlinkDocumentArray) {
+            if (document.id == backlinkNode.root_id) {
+                documentName = document.content;
+                break;
+            }
+        }
+        const avItemPreview = backlinkDoc.avItemPreview;
+        const documentLiElement = createdDocumentLiElement(
+            avItemPreview?.title || documentName,
+            backlinkBlockId,
+            backlinkNode.root_id,
+            avItemPreview?.title || backlinkNode.content,
+            avItemPreview,
+        );
+        documentLiElement.setAttribute("data-preview-key", foldKey);
+
+        const editorElement = document.createElement("div");
+        editorElement.style.minHeight = "auto";
+        if (avItemPreview) {
+            editorElement.classList.add("backlink-panel__av-protyle");
+        }
+        backlinkULElement.append(editorElement);
+        const editor = new Protyle(EnvConfig.ins.app, editorElement, {
+            blockId: backlinkNode.root_id,
+            backlinkData: [backlinkDoc],
+            render: {
+                background: false,
+                title: false,
+                gutter: true,
+                scroll: false,
+                breadcrumb: false,
+            },
+        });
+        afterCreateBacklinkProtyle(backlinkDoc, documentLiElement, editor);
+        editor.protyle.notebookId = notebookId;
+        getEditors().push(editor);
+        return { foldKey, documentLiElement, editorElement, editor };
+    }
+
+    function destroyBacklinkPreviewEntry(entry: BacklinkPreviewEntry) {
+        updateBacklinkDocumentAndProtyleItemAndHeadlineFoldMap(entry.editor);
+        entry.editor.destroy();
+        const editorsTemp = getEditors();
+        const index = editorsTemp.indexOf(entry.editor);
+        if (index >= 0) {
+            editorsTemp.splice(index, 1);
+        }
+        entry.documentLiElement.remove();
+        entry.editorElement.remove();
+    }
+
+    function destroyAllBacklinkPreviewEntries() {
+        for (const entry of backlinkPreviewEntryMap.values()) {
+            destroyBacklinkPreviewEntry(entry);
+        }
+        backlinkPreviewEntryMap.clear();
     }
 
     function clearBacklinkProtyleList() {
-        let editorsTemp = getEditors();
+        if (backlinkListHeightFrame) {
+            cancelAnimationFrame(backlinkListHeightFrame);
+            backlinkListHeightFrame = 0;
+        }
+        destroyAllBacklinkPreviewEntries();
+        const editorsTemp = getEditors();
         if (isArrayNotEmpty(editorsTemp)) {
             editorsTemp.forEach((editor) => {
-                // 清理前先保存列表项折叠状态。
                 updateBacklinkDocumentAndProtyleItemAndHeadlineFoldMap(editor);
                 editor.destroy();
             });
         }
         clearEditors();
+        backlinkPreviewKeywordSignature = "";
         if (backlinkULElement) {
             backlinkULElement.innerHTML = "";
+            backlinkULElement.style.minHeight = "";
         }
+    }
+
+    function collectPreviewKeywordArray() {
+        if (!queryParams) {
+            return [];
+        }
+        let keywordArray: string[];
+        if (panelMode == "mention") {
+            keywordArray = splitKeywordStringToArray(
+                queryParams.mentionKeywordStr,
+            );
+            const mentionKeywordArray =
+                backlinkFilterPanelRenderData?.mentionKeywordArray;
+            if (isArrayNotEmpty(mentionKeywordArray)) {
+                keywordArray = keywordArray.concat(mentionKeywordArray);
+            }
+        } else {
+            keywordArray = splitKeywordStringToArray(
+                queryParams.backlinkKeywordStr,
+            );
+        }
+        for (let i = 0; i < keywordArray.length; i++) {
+            const keyword = keywordArray[i];
+            if (keyword.startsWith("-%") || keyword.startsWith("%-")) {
+                keywordArray[i] = keyword.slice(2);
+            } else if (keyword.startsWith("%") || keyword.startsWith("-")) {
+                keywordArray[i] = keyword.slice(1);
+            }
+        }
+        return keywordArray;
+    }
+
+    function previewKeywordSignature() {
+        return `${panelMode}|${collectPreviewKeywordArray().join("\n")}`;
+    }
+
+    function highlightReusedBacklinkPreview(
+        documentLiElement: HTMLElement,
+        editor: Protyle,
+    ) {
+        const keywordArray = collectPreviewKeywordArray();
+        const contentElement = editor?.protyle?.contentElement;
+        clearCssHighlightsIn(documentLiElement);
+        if (contentElement) {
+            clearCssHighlightsIn(contentElement);
+        }
+        if (isArrayEmpty(keywordArray)) {
+            return;
+        }
+        highlightElementTextByCss(documentLiElement, keywordArray);
+        if (!contentElement) {
+            return;
+        }
+        delayedTwiceRefresh(() => {
+            highlightElementTextByCss(contentElement, keywordArray);
+        }, 100);
     }
 
     function updateBacklinkDocumentAndProtyleItemAndHeadlineFoldMap(
@@ -860,73 +1195,6 @@
         backlinkProtyleHeadingExpandMap.set(foldKey, expandHeadingMore);
     }
 
-    function batchCreateOfficialBacklinkProtyle(
-        backlinkDocumentArray: DefBlock[],
-        backlinkDataArray: IBacklinkData[],
-    ) {
-        if (isArrayEmpty(backlinkDataArray)) {
-            if (!backlinkULElement) {
-                return;
-            }
-            let emptyElement = document.createElement("li");
-            emptyElement.className = "b3-list--empty";
-            emptyElement.textContent = window.siyuan.languages.emptyContent;
-            backlinkULElement.append(emptyElement);
-            return;
-        }
-
-        for (const backlinkDoc of backlinkDataArray) {
-            let backlinkNode = backlinkDoc.backlinkBlock;
-            let backlinkBlockId = backlinkNode.id;
-            let notebookId = backlinkNode.box;
-
-            let documentName: string = "";
-            for (const document of backlinkDocumentArray) {
-                if (document.id == backlinkNode.root_id) {
-                    documentName = document.content;
-                    break;
-                }
-            }
-            let backlinkRootId = backlinkNode.root_id;
-            // let backlinkRootId = backlinkDoc.blockPaths[0].id;
-
-            let avItemPreview = backlinkDoc.avItemPreview;
-            let documentLiElement = createdDocumentLiElement(
-                avItemPreview?.title || documentName,
-                backlinkBlockId,
-                backlinkRootId,
-                avItemPreview?.title || backlinkNode.content,
-                avItemPreview,
-            );
-
-            let backlinks: IBacklinkData[] = [backlinkDoc];
-            const editorElement = document.createElement("div");
-            editorElement.style.minHeight = "auto";
-            if (avItemPreview) {
-                editorElement.classList.add("backlink-panel__av-protyle");
-            }
-
-            backlinkULElement.append(editorElement);
-            const editor = new Protyle(EnvConfig.ins.app, editorElement, {
-                blockId: backlinkRootId,
-                backlinkData: backlinks,
-                render: {
-                    background: false,
-                    title: false,
-                    gutter: true,
-                    scroll: false,
-                    breadcrumb: false,
-                },
-            });
-            afterCreateBacklinkProtyle(backlinkDoc, documentLiElement, editor);
-
-            editor.protyle.notebookId = notebookId;
-
-            let editorsTemp = getEditors();
-            editorsTemp.push(editor);
-        }
-    }
-
     function afterCreateBacklinkProtyle(
         backlinkData: IBacklinkData,
         documentLiElement: HTMLElement,
@@ -979,32 +1247,7 @@
         // 隐藏筛选条件中不相干的列表项，
         hideOtherListItemElement(backlinkData, protyle);
 
-        // 高亮搜索内容
-        let keywordArray: string[];
-        if (panelMode == "mention") {
-            // 提及模式：高亮用户提及关键字 + 内核返回的命中关键字（名称/别名/文档名/锚文本）。
-            keywordArray = splitKeywordStringToArray(
-                queryParams.mentionKeywordStr,
-            );
-            let mentionKeywordArray =
-                backlinkFilterPanelRenderData.mentionKeywordArray;
-            if (isArrayNotEmpty(mentionKeywordArray)) {
-                keywordArray = keywordArray.concat(mentionKeywordArray);
-            }
-        } else {
-            keywordArray = splitKeywordStringToArray(
-                queryParams.backlinkKeywordStr,
-            );
-        }
-        // 去掉关键词前面存在的匹配符
-        for (let i = 0; i < keywordArray.length; i++) {
-            let keyword = keywordArray[i];
-            if (keyword.startsWith("-%") || keyword.startsWith("%-")) {
-                keywordArray[i] = keyword.slice(2);
-            } else if (keyword.startsWith("%") || keyword.startsWith("-")) {
-                keywordArray[i] = keyword.slice(1);
-            }
-        }
+        const keywordArray = collectPreviewKeywordArray();
         highlightElementTextByCss(documentLiElement, keywordArray);
         delayedTwiceRefresh(() => {
             highlightElementTextByCss(protyleContentElement, keywordArray);
@@ -1031,13 +1274,35 @@
         });
     }
 
+    function restoreFilterHiddenListItems(root: Element) {
+        const hidden = root.querySelectorAll(`[data-backlink-filter-hidden="1"]`);
+        for (const item of hidden) {
+            item.classList.remove("fn__none");
+            item.removeAttribute("data-backlink-filter-hidden");
+        }
+    }
+
+    function hideFilteredListItem(element: Element) {
+        element.classList.add("fn__none");
+        element.setAttribute("data-backlink-filter-hidden", "1");
+    }
+
+    function showFilteredListItem(element: Element) {
+        element.classList.remove("fn__none");
+        element.removeAttribute("data-backlink-filter-hidden");
+    }
+
     function hideOtherListItemElement(
         backlinkData: IBacklinkData,
         protyle: Protyle,
     ) {
         // 因为之前筛选面板的设计没有考虑到选择一个关联定义块后，隐藏其他没有这个定义块的列表这个功能，所以这里隐藏了，筛选面板不会隐藏，暂时不处理
         // return;
-        let protyleContentElement = protyle.protyle.contentElement;
+        let protyleContentElement = protyle?.protyle?.contentElement;
+        if (!protyleContentElement || !queryParams) {
+            return;
+        }
+        restoreFilterHiddenListItems(protyleContentElement);
 
         let inclucdeRelatedDefBlockIds = queryParams.includeRelatedDefBlockIds;
         let excludeRelatedDefBlockIds = queryParams.excludeRelatedDefBlockIds;
@@ -1077,14 +1342,14 @@
             );
             // 先把所有列表项块隐藏
             for (const itemElement of allListItemElement) {
-                itemElement.classList.add("fn__none");
+                hideFilteredListItem(itemElement);
             }
             for (const itemId of includeChildListItemIdArray) {
                 let targetElement = targetBlockParentElement.querySelector(
                     `div[data-type="NodeListItem"][data-node-id="${itemId}"]`,
                 );
                 if (targetElement) {
-                    targetElement.classList.remove("fn__none");
+                    showFilteredListItem(targetElement);
                 }
             }
         }
@@ -1097,7 +1362,7 @@
                     `div[data-type="NodeListItem"][data-node-id="${itemId}"]`,
                 );
                 if (targetElement) {
-                    targetElement.classList.add("fn__none");
+                    hideFilteredListItem(targetElement);
                 }
             }
         }
@@ -1916,7 +2181,7 @@
             {/each}
         </div>
     {/if}
-    {#if rootId && isPanelDataReady}
+    {#if rootId && queryParams}
     <div class="backlink-panel__header">
         <div
             class="panel__title filter-panel__title block__icons"
@@ -2012,7 +2277,7 @@
                 <select
                     class="b3-select fn__flex-center"
                     bind:value={queryCurDocDefBlockRange}
-                    on:change={initBaseData}
+                    on:change={reloadCurDocDefBlockRange}
                     style="flex: 0.7;"
                 >
                     {#each CUR_DOC_DEF_BLOCK_TYPE_ELEMENT() as element}
@@ -2491,8 +2756,8 @@
         </ul>
     {/if}
     <div
-        class="backlinkList fn__flex-1 {!panelDataLoading &&
-        (panelBacklinkViewExpand || isCurrentDocEmpty)
+        class="backlinkList fn__flex-1 {panelBacklinkViewExpand ||
+        isCurrentDocEmpty
             ? ''
             : 'fn__none'} {!rootId ? 'fn__none' : ''}"
     >
@@ -2518,7 +2783,10 @@
         margin: 4px 4px 4px 2px;
         border-radius: 4px;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition:
+            background-color 0.2s ease,
+            color 0.2s ease,
+            border-color 0.2s ease;
         border: 1px solid transparent;
         position: relative; /* 为了绝对定位的小数字 */
         max-width: 120px;
@@ -2614,6 +2882,10 @@
             transform 0.3s ease,
             box-shadow 0.3s ease;
     }
+    /* 标题有上下外边距，行高会大于输入框。下拉框已居中，输入框也要居中，避免贴在行顶。 */
+    .backlink-panel-filter > .fn__flex {
+        align-items: center;
+    }
     /* 悬停效果 */
     .backlink-panel-filter:hover {
         /* border: 1px solid #ccc; */
@@ -2703,12 +2975,17 @@
         position: sticky;
         top: 78px;
         text-align: center;
-        padding: 0px 0px;
+        padding: 0 0 10px;
         z-index: 2;
         overflow: visible;
         background-color: var(--b3-theme-surface);
-        margin-bottom: 10px;
         border-radius: 10px;
+    }
+
+    /* 列表单独成层，图片缩放手柄（z-index: 6）滚到吸顶栏下时画在栏后面。 */
+    .backlinkList {
+        position: relative;
+        z-index: 0;
     }
 
     .backlink-panel__header .b3-text-field:not(.b3-text-field:focus) {
